@@ -84,7 +84,7 @@ install_maven() {
         if [ ! -f "/tmp/${MAVEN_TAR}" ]; then
             echo -e "${RED}Maven下载失败${NC}"
             exit 1
-        }
+        fi
         
         # 解压Maven
         echo -e "${GREEN}解压Maven...${NC}"
@@ -94,7 +94,7 @@ install_maven() {
         if [ ! -d "/tmp/apache-maven-${MAVEN_VERSION}" ]; then
             echo -e "${RED}Maven解压失败${NC}"
             exit 1
-        }
+        fi
         
         # 移动文件
         mv "/tmp/apache-maven-${MAVEN_VERSION}"/* ${MAVEN_HOME}/
@@ -113,41 +113,51 @@ install_maven() {
         if [ ! -f "${MVN_CMD}" ]; then
             echo -e "${RED}Maven安装失败${NC}"
             exit 1
-        }
+        fi
         
         echo -e "${GREEN}Maven安装完成${NC}"
     fi
 }
 
-# 检查Java环境
+# 检查并安装Java
 install_java() {
-    if [ ! -d "${JAVA_HOME}" ]; then
-        echo -e "${YELLOW}JDK未安装，开始安装...${NC}"
+    echo -e "${YELLOW}JDK未安装，开始安装...${NC}"
+    
+    # 根据系统类型安装JDK
+    if [ -f /etc/debian_version ]; then
+        # Debian/Ubuntu系统
+        apt-get update
+        apt-get install -y openjdk-${JAVA_VERSION}-jdk
         
-        # 根据系统类型安装JDK
-        if [ -f /etc/debian_version ]; then
-            # Debian/Ubuntu系统
-            apt-get update
-            apt-get install -y openjdk-${JAVA_VERSION}-jdk
-            
-            # 设置JAVA_HOME
-            JAVA_HOME=$(readlink -f /usr/bin/java | sed "s:/bin/java::")
-            
-        elif [ -f /etc/redhat-release ]; then
-            # CentOS/RHEL系统
-            yum install -y java-${JAVA_VERSION}-openjdk-devel
-            
-            # 设置JAVA_HOME
-            JAVA_HOME=$(readlink -f /usr/bin/java | sed "s:/bin/java::")
-        fi
+        # 设置JAVA_HOME
+        JAVA_HOME="/usr/lib/jvm/java-${JAVA_VERSION}-openjdk-amd64"
         
-        # 配置Java环境变量
-        echo "export JAVA_HOME=${JAVA_HOME}" > /etc/profile.d/java.sh
-        echo 'export PATH=$JAVA_HOME/bin:$PATH' >> /etc/profile.d/java.sh
-        source /etc/profile.d/java.sh
+    elif [ -f /etc/redhat-release ]; then
+        # CentOS/RHEL系统
+        yum install -y java-${JAVA_VERSION}-openjdk-devel
         
-        echo -e "${GREEN}JDK安装完成${NC}"
+        # 设置JAVA_HOME
+        JAVA_HOME="/usr/lib/jvm/java-${JAVA_VERSION}-openjdk"
     fi
+    
+    # 验证JAVA_HOME
+    if [ ! -d "${JAVA_HOME}" ]; then
+        echo -e "${RED}错误: JAVA_HOME目录不存在: ${JAVA_HOME}${NC}"
+        exit 1
+    fi
+    
+    # 配置Java环境变量
+    echo "export JAVA_HOME=${JAVA_HOME}" > /etc/profile.d/java.sh
+    echo 'export PATH=$JAVA_HOME/bin:$PATH' >> /etc/profile.d/java.sh
+    source /etc/profile.d/java.sh
+    
+    # 验证javac
+    if ! command -v javac &> /dev/null; then
+        echo -e "${RED}错误: javac命令不可用${NC}"
+        exit 1
+    fi
+    
+    echo -e "${GREEN}JDK安装完成: $(javac -version)${NC}"
 }
 
 # 检查Java环境
@@ -159,16 +169,20 @@ check_java() {
     
     # 验证Java版本
     java_version=$(java -version 2>&1 | awk -F '"' '/version/ {print $2}')
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}Java版本: $java_version${NC}"
-    else
-        echo -e "${RED}Java安装失败${NC}"
-        exit 1
+    javac_version=$(javac -version 2>&1)
+    
+    echo -e "${GREEN}Java版本: $java_version${NC}"
+    echo -e "${GREEN}JDK版本: $javac_version${NC}"
+    
+    # 验证JAVA_HOME
+    if [ ! -d "${JAVA_HOME}" ]; then
+        echo -e "${RED}错误: JAVA_HOME未正确设置${NC}"
+        install_java
     fi
     
-    # 验证是否为JDK
+    # 再次验证javac
     if ! command -v javac &> /dev/null; then
-        echo -e "${RED}错误: 未安装JDK，只有JRE${NC}"
+        echo -e "${RED}错误: JDK安装失败${NC}"
         exit 1
     fi
 }
@@ -198,18 +212,32 @@ check_git() {
 # 拉取代码
 fetch_code() {
     echo -e "${GREEN}拉取代码...${NC}"
-    if [ ! -d "${WORK_DIR}" ]; then
-        git clone -b ${BRANCH} ${REPO_URL} ${WORK_DIR}
-    else
-        cd ${WORK_DIR}
-        git fetch origin
-        git reset --hard origin/${BRANCH}
+    
+    # 确保工作目录存在
+    mkdir -p ${WORK_DIR}
+    
+    # 如果目录不为空，先清空
+    if [ "$(ls -A ${WORK_DIR})" ]; then
+        rm -rf ${WORK_DIR}/*
     fi
+    
+    # 克隆代码
+    echo -e "${GREEN}克隆代码: ${REPO_URL}${NC}"
+    git clone -b ${BRANCH} ${REPO_URL} ${WORK_DIR}
     
     if [ $? -ne 0 ]; then
         echo -e "${RED}代码拉取失败${NC}"
+        echo -e "${RED}请检查：${NC}"
+        echo -e "1. 仓库地址是否正确: ${REPO_URL}"
+        echo -e "2. 分支名称是否正确: ${BRANCH}"
+        echo -e "3. 网络连接是否正常"
         exit 1
     fi
+    
+    # 切换到工作目录
+    cd ${WORK_DIR}
+    
+    echo -e "${GREEN}代码拉取成功${NC}"
 }
 
 # 编译打包
@@ -322,7 +350,7 @@ EOF
     chmod +x ${WORK_DIR}/manage.sh
 }
 
-# 主函数
+# ��函数
 main() {
     echo -e "${GREEN}开始部署 ${APP_NAME}${NC}"
     check_java
