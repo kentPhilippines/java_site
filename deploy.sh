@@ -7,8 +7,8 @@ BRANCH="main"
 WORK_DIR="/opt/${APP_NAME}"
 LOG_DIR="${WORK_DIR}/logs"
 JAR_FILE="${WORK_DIR}/target/${APP_NAME}-0.0.1-SNAPSHOT.jar"
-
-# Maven相关配置
+JAVA_VERSION="11"
+JAVA_HOME="/opt/java"
 MAVEN_VERSION="3.9.5"
 MAVEN_HOME="/opt/maven"
 MAVEN_DOWNLOAD_URL="https://dlcdn.apache.org/maven/maven-3/${MAVEN_VERSION}/binaries/apache-maven-${MAVEN_VERSION}-bin.tar.gz"
@@ -21,6 +21,53 @@ RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
+# 清理环境
+clean_environment() {
+    echo -e "${YELLOW}开始清理环境...${NC}"
+    
+    # 停止现有服务
+    pid=$(pgrep -f ${APP_NAME})
+    if [ ! -z "$pid" ]; then
+        kill -9 ${pid}
+    fi
+    
+    # 删除工作目录
+    if [ -d "${WORK_DIR}" ]; then
+        rm -rf ${WORK_DIR}
+        echo -e "${GREEN}已删除工作目录${NC}"
+    fi
+    
+    # 删除Java环境
+    if [ -d "${JAVA_HOME}" ]; then
+        rm -rf ${JAVA_HOME}
+        rm -f /etc/profile.d/java.sh
+        echo -e "${GREEN}已删除Java环境${NC}"
+    fi
+    
+    # 删除Maven环境
+    if [ -d "${MAVEN_HOME}" ]; then
+        rm -rf ${MAVEN_HOME}
+        rm -f /etc/profile.d/maven.sh
+        echo -e "${GREEN}已删除Maven环境${NC}"
+    fi
+    
+    # 清理系统级Java和Maven（根据系统类型）
+    if [ -f /etc/debian_version ]; then
+        # Debian/Ubuntu系统
+        apt-get remove -y openjdk* maven
+        apt-get autoremove -y
+    elif [ -f /etc/redhat-release ]; then
+        # CentOS/RHEL系统
+        yum remove -y java-* maven
+        yum autoremove -y
+    fi
+    
+    # 刷新环境变量
+    source /etc/profile
+    
+    echo -e "${GREEN}环境清理完成${NC}"
+}
+
 # 检查并安装Maven
 install_maven() {
     if [ ! -f "${MVN_CMD}" ]; then
@@ -31,16 +78,30 @@ install_maven() {
         
         # 下载Maven
         echo -e "${GREEN}下载Maven...${NC}"
-        wget ${MAVEN_DOWNLOAD_URL} -O /tmp/${MAVEN_TAR}
+        wget "${MAVEN_DOWNLOAD_URL}" -P /tmp/
+        
+        # 检查下载是否成功
+        if [ ! -f "/tmp/${MAVEN_TAR}" ]; then
+            echo -e "${RED}Maven下载失败${NC}"
+            exit 1
+        }
         
         # 解压Maven
         echo -e "${GREEN}解压Maven...${NC}"
-        tar -xzf /tmp/${MAVEN_TAR} -C /tmp
-        mv /tmp/apache-maven-${MAVEN_VERSION}/* ${MAVEN_HOME}/
+        tar -xzf "/tmp/${MAVEN_TAR}" -C /tmp/
+        
+        # 检查解压是否成功
+        if [ ! -d "/tmp/apache-maven-${MAVEN_VERSION}" ]; then
+            echo -e "${RED}Maven解压失败${NC}"
+            exit 1
+        }
+        
+        # 移动文件
+        mv "/tmp/apache-maven-${MAVEN_VERSION}"/* ${MAVEN_HOME}/
         
         # 清理临时文件
-        rm -f /tmp/${MAVEN_TAR}
-        rm -rf /tmp/apache-maven-${MAVEN_VERSION}
+        rm -f "/tmp/${MAVEN_TAR}"
+        rm -rf "/tmp/apache-maven-${MAVEN_VERSION}"
         
         # 配置Maven环境变量
         echo -e "${GREEN}配置Maven环境变量...${NC}"
@@ -48,18 +109,68 @@ install_maven() {
         echo 'export PATH=$MAVEN_HOME/bin:$PATH' >> /etc/profile.d/maven.sh
         source /etc/profile.d/maven.sh
         
+        # 验证安装
+        if [ ! -f "${MVN_CMD}" ]; then
+            echo -e "${RED}Maven安装失败${NC}"
+            exit 1
+        }
+        
         echo -e "${GREEN}Maven安装完成${NC}"
     fi
 }
 
 # 检查Java环境
+install_java() {
+    if [ ! -d "${JAVA_HOME}" ]; then
+        echo -e "${YELLOW}JDK未安装，开始安装...${NC}"
+        
+        # 根据系统类型安装JDK
+        if [ -f /etc/debian_version ]; then
+            # Debian/Ubuntu系统
+            apt-get update
+            apt-get install -y openjdk-${JAVA_VERSION}-jdk
+            
+            # 设置JAVA_HOME
+            JAVA_HOME=$(readlink -f /usr/bin/java | sed "s:/bin/java::")
+            
+        elif [ -f /etc/redhat-release ]; then
+            # CentOS/RHEL系统
+            yum install -y java-${JAVA_VERSION}-openjdk-devel
+            
+            # 设置JAVA_HOME
+            JAVA_HOME=$(readlink -f /usr/bin/java | sed "s:/bin/java::")
+        fi
+        
+        # 配置Java环境变量
+        echo "export JAVA_HOME=${JAVA_HOME}" > /etc/profile.d/java.sh
+        echo 'export PATH=$JAVA_HOME/bin:$PATH' >> /etc/profile.d/java.sh
+        source /etc/profile.d/java.sh
+        
+        echo -e "${GREEN}JDK安装完成${NC}"
+    fi
+}
+
+# 检查Java环境
 check_java() {
-    if ! command -v java &> /dev/null; then
-        echo -e "${RED}错误: 未安装Java${NC}"
+    # 检查是否安装了JDK
+    if ! command -v javac &> /dev/null; then
+        install_java
+    fi
+    
+    # 验证Java版本
+    java_version=$(java -version 2>&1 | awk -F '"' '/version/ {print $2}')
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}Java版本: $java_version${NC}"
+    else
+        echo -e "${RED}Java安装失败${NC}"
         exit 1
     fi
-    java_version=$(java -version 2>&1 | awk -F '"' '/version/ {print $2}')
-    echo -e "${GREEN}Java版本: $java_version${NC}"
+    
+    # 验证是否为JDK
+    if ! command -v javac &> /dev/null; then
+        echo -e "${RED}错误: 未安装JDK，只有JRE${NC}"
+        exit 1
+    fi
 }
 
 # 检查Maven环境
@@ -137,7 +248,8 @@ stop_service() {
 start_service() {
     echo -e "${GREEN}启动服务...${NC}"
     cd ${WORK_DIR}
-    nohup java -jar ${JAR_FILE} \
+    JAVA_CMD="${JAVA_HOME}/bin/java"
+    nohup ${JAVA_CMD} -jar ${JAR_FILE} \
         --spring.profiles.active=prod \
         > ${LOG_DIR}/app.log 2>&1 &
 
