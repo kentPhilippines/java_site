@@ -26,20 +26,16 @@ public class SSLConfig {
     @Bean
     public ServletWebServerFactory servletContainer() {
         TomcatServletWebServerFactory tomcat = new TomcatServletWebServerFactory();
-        
-        // 添加 HTTP 连接器
         tomcat.addAdditionalTomcatConnectors(createStandardConnector());
         
         // 配置 SSL
-        tomcat.addContextCustomizers(context -> {
+        tomcat.addConnectorCustomizers(connector -> {
             List<CertificateConfig> certificates = certificateRepository.findByEnabled(true);
             for (CertificateConfig cert : certificates) {
-                SSLHostConfig sslHostConfig = new SSLHostConfig();
-                sslHostConfig.setHostName(cert.getDomainName());
-                sslHostConfig.setCertificateKeystoreFile(cert.getCertificatePath());
-                sslHostConfig.setCertificateKeystorePassword(cert.getKeyPassword());
-                sslHostConfig.setCertificateKeystoreType(cert.getStoreType());
-                context.addSSLHostConfig(sslHostConfig);
+                connector.setAttribute("keystoreFile", cert.getCertificatePath());
+                connector.setAttribute("keystorePass", cert.getKeyPassword());
+                connector.setAttribute("keystoreType", cert.getStoreType());
+                connector.setAttribute("keyAlias", cert.getKeyAlias());
             }
         });
         

@@ -2,10 +2,14 @@
 
 # 设置变量
 APP_NAME="java_site"
-JAR_FILE="target/${APP_NAME}-0.0.1-SNAPSHOT.jar"
+REPO_URL="https://github.com/kentPhilippines/java_site.git"  # 替换为你的仓库地址
+BRANCH="main"  # 替换为你的分支名
+WORK_DIR="/opt/java_site"
+JAR_FILE="${WORK_DIR}/target/${APP_NAME}-0.0.1-SNAPSHOT.jar"
 APP_PORT=443
 HTTP_PORT=80
 JAVA_VERSION="11"
+MAVEN_VERSION="3.8.4"
 
 # 颜色输出
 GREEN='\033[0;32m'
@@ -85,8 +89,82 @@ EOF
 create_service_user() {
     echo -e "${GREEN}创建服务用户...${NC}"
     if ! id -u javaapp &>/dev/null; then
-        useradd -r -s /bin/false javaapp
+        useradd -m -s /bin/bash javaapp  # 创建用户并创建home目录
         usermod -a -G javaapp javaapp
+    fi
+    
+    # 设置目录权限
+    mkdir -p ${WORK_DIR}/{logs,cert,target}
+    chown -R javaapp:javaapp ${WORK_DIR}
+    chmod -R 755 ${WORK_DIR}
+}
+
+# 检查并安装Git
+install_git() {
+    echo -e "${GREEN}检查Git环境...${NC}"
+    if ! command -v git &> /dev/null; then
+        echo -e "${YELLOW}未检测到Git，开始安装...${NC}"
+        if [ -f /etc/debian_version ]; then
+            apt-get update
+            apt-get install -y git
+        elif [ -f /etc/redhat-release ]; then
+            yum install -y git
+        fi
+    fi
+}
+
+# 安装Maven
+install_maven() {
+    echo -e "${GREEN}检查Maven环境...${NC}"
+    if ! command -v mvn &> /dev/null; then
+        echo -e "${YELLOW}未检测到Maven，开始安装...${NC}"
+        if [ -f /etc/debian_version ]; then
+            # Debian/Ubuntu系统
+            apt-get update
+            apt-get install -y maven
+        elif [ -f /etc/redhat-release ]; then
+            # CentOS/RHEL系统
+            yum install -y maven
+        fi
+    fi
+    
+    # 验证Maven安装
+    mvn_version=$(mvn -version | head -n 1)
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}Maven安装成功: $mvn_version${NC}"
+    else
+        echo -e "${RED}Maven安装失败${NC}"
+        exit 1
+    fi
+}
+
+# 拉取代码
+fetch_code() {
+    echo -e "${GREEN}拉取代码...${NC}"
+    if [ ! -d "${WORK_DIR}" ]; then
+        git clone ${REPO_URL} ${WORK_DIR}
+        cd ${WORK_DIR}
+    else
+        cd ${WORK_DIR}
+        git fetch origin
+        git reset --hard origin/${BRANCH}
+    fi
+    
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}代码拉取失败${NC}"
+        exit 1
+    fi
+}
+
+# 编译代码
+build_code() {
+    echo -e "${GREEN}编译代码...${NC}"
+    cd ${WORK_DIR}
+    mvn clean package -DskipTests
+    
+    if [ ! -f "${JAR_FILE}" ]; then
+        echo -e "${RED}编译失败${NC}"
+        exit 1
     fi
 }
 
@@ -100,8 +178,20 @@ main() {
     # 安装基础工具
     install_tools
     
+    # 安装Git
+    install_git
+    
     # 安装Java
     install_java
+    
+    # 安装Maven
+    install_maven
+    
+    # 拉取代码
+    fetch_code
+    
+    # 编译代码
+    build_code
     
     # 配置系统
     configure_system
@@ -109,17 +199,20 @@ main() {
     # 创建服务用户
     create_service_user
     
-    # 创建必要的目录
-    mkdir -p logs cert
-    chown -R javaapp:javaapp logs cert
-    
     # 检查端口占用
     check_port() {
         if lsof -i:$1 > /dev/null 2>&1; then
             echo -e "${YELLOW}警告: 端口 $1 已被占用${NC}"
-            echo -e "${YELLOW}尝试释放端口...${NC}"
-            fuser -k $1/tcp
-            sleep 2
+            read -p "是否释放该端口？(y/n) " -n 1 -r
+            echo
+            if [[ $REPLY =~ ^[Yy]$ ]]; then
+                echo -e "${YELLOW}尝试释放端口...${NC}"
+                fuser -k $1/tcp
+                sleep 2
+            else
+                echo -e "${RED}端口 $1 被占用，部署终止${NC}"
+                exit 1
+            fi
         fi
     }
     
@@ -151,22 +244,26 @@ main() {
     
     # 启动服务
     echo -e "${GREEN}启动服务...${NC}"
-    su - javaapp -c "nohup java $JAVA_OPTS -jar ${JAR_FILE} \
+    cd ${WORK_DIR}
+    chown javaapp:javaapp ${JAR_FILE}
+    su - javaapp -c "cd ${WORK_DIR} && \
+        nohup java $JAVA_OPTS -jar ${JAR_FILE} \
         --server.port=$APP_PORT \
         --server.http.port=$HTTP_PORT \
         --spring.profiles.active=prod \
-        > logs/app.log 2>&1 &"
+        > ${WORK_DIR}/logs/app.log 2>&1 &"
     
     # 等待服务启动
     echo -e "${GREEN}等待服务启动...${NC}"
-    for i in {1..30}; do
+    for i in {1..60}; do  # 增加等待时间到60秒
         if curl -s http://localhost:$HTTP_PORT/actuator/health > /dev/null; then
             echo -e "${GREEN}服务已成功启动${NC}"
             break
         fi
-        if [ $i -eq 30 ]; then
+        if [ $i -eq 60 ]; then
             echo -e "${RED}服务启动超时，请检查日志${NC}"
-            tail -n 50 logs/app.log
+            echo -e "${YELLOW}最后50行日志：${NC}"
+            tail -n 50 ${WORK_DIR}/logs/app.log
             exit 1
         fi
         echo -n "."
@@ -183,10 +280,17 @@ main() {
 
 # 创建管理脚本和说明文件
 create_management_scripts() {
-    # 创建管理脚本
-    cat > manage.sh << 'EOF'
+    cat > ${WORK_DIR}/manage.sh << 'EOF'
 #!/bin/bash
 case "$1" in
+    deploy)
+        sudo bash deploy.sh
+        ;;
+    update)
+        cd /opt/java_site
+        git pull
+        sudo bash deploy.sh
+        ;;
     start)
         sudo bash deploy.sh
         ;;
@@ -215,24 +319,26 @@ case "$1" in
         fi
         ;;
     log)
-        tail -f logs/app.log
+        tail -f ${WORK_DIR}/logs/app.log
         ;;
     *)
-        echo "用法: $0 {start|stop|restart|status|log}"
+        echo "用法: $0 {deploy|update|start|stop|restart|status|log}"
         exit 1
         ;;
 esac
 EOF
 
-    chmod +x manage.sh
+    chmod +x ${WORK_DIR}/manage.sh
     
     # 创建说明文件
-    cat > README.txt << EOF
+    cat > ${WORK_DIR}/README.txt << EOF
 ===== ${APP_NAME} 服务管理说明 =====
 1. 首次部署：
    sudo bash deploy.sh
 
 2. 日常管理命令：
+   更新代码：./manage.sh update
+   部署服务：./manage.sh deploy
    启动服务：./manage.sh start
    停止服务：./manage.sh stop
    重启服务：./manage.sh restart
@@ -240,6 +346,7 @@ EOF
    查看日志：./manage.sh log
 
 3. 服务配置：
+   部署目录：${WORK_DIR}
    HTTPS端口：$APP_PORT
    HTTP端口：$HTTP_PORT
    日志位置：logs/app.log
@@ -247,7 +354,9 @@ EOF
 4. 系统要求：
    - Linux系统（Ubuntu/CentOS等）
    - 最小内存：1GB
+   - Git
    - Java ${JAVA_VERSION}
+   - Maven ${MAVEN_VERSION}
 
 5. 注意事项：
    - 首次部署需要root权限
@@ -257,6 +366,7 @@ EOF
 6. 目录说明：
    - logs/: 日志目录
    - cert/: 证书目录
+   - target/: 编译输出目录
 
 7. 常见问题：
    Q: 服务无法启动
@@ -264,6 +374,9 @@ EOF
 
    Q: 端口被占用
    A: 使用 sudo lsof -i:端口号 查看占用进程
+
+   Q: 代码更新失败
+   A: 检查Git配置和网络连接
 
 ==================
 EOF
