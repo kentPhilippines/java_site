@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.catalina.connector.Connector;
 import org.apache.tomcat.util.net.SSLHostConfig;
+import org.apache.tomcat.util.net.SSLHostConfigCertificate;
 import org.springframework.boot.web.embedded.tomcat.TomcatWebServer;
 import org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext;
 import org.springframework.stereotype.Component;
@@ -36,9 +37,22 @@ public class SSLConfigManager {
             TomcatWebServer tomcat = (TomcatWebServer) serverContext.getWebServer();
             Connector[] connectors = tomcat.getTomcat().getService().findConnectors();
             log.info("找到的连接器数量: {}", connectors.length);
+
             for (Connector connector : connectors) {
-                log.info("连接器: {}", connector.getScheme());
+                log.info("连接器: {} {}", connector.getScheme(), connector.getPort());
                 if (connector.getScheme().equals("https")) {
+                    Http11NioProtocol protocol = (Http11NioProtocol) connector.getProtocolHandler();
+                    protocol.setSSLEnabled(true);
+
+                    // 检查现有配置
+                    SSLHostConfig[] existingConfigs = connector.findSslHostConfigs();
+                    log.info("现有SSL主机配置数量: {}", existingConfigs.length);
+                    for (SSLHostConfig config : existingConfigs) {
+                        log.info("已配置的域名: {}, 证书文件: {}",
+                                config.getHostName(),
+                                config.getCertificateKeystoreFile());
+                    }
+
                     // 创建新的SSL配置
                     SSLHostConfig sslHostConfig = new SSLHostConfig();
                     sslHostConfig.setHostName(domain);
@@ -46,26 +60,31 @@ public class SSLConfigManager {
                     sslHostConfig.setCertificateKeystorePassword(KEYSTORE_PASSWORD);
                     sslHostConfig.setCertificateKeystoreType("PKCS12");
                     sslHostConfig.setProtocols("+TLSv1.2,+TLSv1.3");
-                    
-                    // 检查现有配置
-                    SSLHostConfig[] existingConfigs = connector.findSslHostConfigs();
-                    log.info("现有SSL主机配置数量: {}", existingConfigs.length);
-                    for (SSLHostConfig config : existingConfigs) {
-                        log.info("已配置的域名: {}, 证书文件: {}", 
-                            config.getHostName(), 
-                            config.getCertificateKeystoreFile());
-                    }
+
+                    // 配置加密套件
+                    sslHostConfig.setCiphers(
+                            "ECDHE-RSA-AES128-GCM-SHA256," +
+                                    "ECDHE-RSA-AES256-GCM-SHA384," +
+                                    "DHE-RSA-AES128-GCM-SHA256," +
+                                    "DHE-RSA-AES256-GCM-SHA384");
+
+                    // 配置证书验证
+                    sslHostConfig.setTrustManagerClassName("org.apache.tomcat.util.net.jsse.PEMTrustManager");
+                    sslHostConfig.setTruststoreFile(keystoreFile.getAbsolutePath());
+                    sslHostConfig.setTruststorePassword(KEYSTORE_PASSWORD);
+                    sslHostConfig.setTruststoreType("PKCS12");
+
                     // 更新配置
                     connector.addSslHostConfig(sslHostConfig);
                     log.info("成功为域名 {} 添加SSL证书配置", domain);
-                    
+
                     // 验证配置是否生效
                     SSLHostConfig[] sslHostConfigs = connector.findSslHostConfigs();
                     for (SSLHostConfig config : sslHostConfigs) {
-                        log.info("SSL配置验证成功 - 域名: {}, 证书文件: {}, 协议: {}", 
-                            config.getHostName(),
-                            config.getCertificateKeystoreFile(),
-                            config.getProtocols());
+                        log.info("SSL配置验证成功 - 域名: {}, 证书文件: {}, 协议: {}",
+                                config.getHostName(),
+                                config.getCertificateKeystoreFile(),
+                                config.getProtocols());
                     }
                 }
             }
@@ -109,4 +128,4 @@ public class SSLConfigManager {
             log.error("扫描证书失败", e);
         }
     }
-} 
+}
