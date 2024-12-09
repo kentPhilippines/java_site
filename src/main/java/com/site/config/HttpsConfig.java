@@ -31,7 +31,6 @@ public class HttpsConfig {
 
         // 添加HTTP连接器
         tomcat.addAdditionalTomcatConnectors(createStandardConnector());
-        tomcat.addAdditionalTomcatConnectors(createStandardHttpsConnector());
         
         return tomcat;
     }
@@ -44,13 +43,4 @@ public class HttpsConfig {
         connector.setRedirectPort(httpsPort);
         return connector;
     }
-    private Connector createStandardHttpsConnector() {
-        Connector connector = new Connector(Http11NioProtocol.class.getName());
-        connector.setPort(httpsPort);
-        connector.setSecure(false);
-        connector.setScheme("https");
-        return connector;
-    }
-    
-
 } 

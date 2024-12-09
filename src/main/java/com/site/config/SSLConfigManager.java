@@ -45,7 +45,7 @@ public class SSLConfigManager {
                     sslHostConfig.setCertificateKeystoreFile(keystoreFile.getAbsolutePath());
                     sslHostConfig.setCertificateKeystorePassword(KEYSTORE_PASSWORD);
                     sslHostConfig.setCertificateKeystoreType("PKCS12");
-                    sslHostConfig.setProtocols("TLSv1.2,TLSv1.3");
+                    sslHostConfig.setProtocols("+TLSv1.2,+TLSv1.3");
                     // 更新配置
                     connector.addSslHostConfig(sslHostConfig);
 
