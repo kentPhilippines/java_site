@@ -9,15 +9,27 @@
     <div class="container mt-4">
         <h2>站点管理</h2>
         
-        <div class="card">
+        <div class="card mb-4">
             <div class="card-header">
                 系统信息
             </div>
             <div class="card-body">
                 <p>服务状态：运行中</p>
-                <p>HTTP端口：80</p>
+                <p>服务端口：<span th:text="${serverPort}">801</span></p>
+                <p>代理地址：<span th:text="${baseUrl}">https://sci.ncut.edu.cn</span></p>
+                <p>管理路径：/<span th:text="${managePath}">******</span></p>
                 <p>日志位置：logs/app.log</p>
-                <p class="text-warning">注意：请使用 http:// 访问本站</p>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                缓存统计
+            </div>
+            <div class="card-body">
+                <p>缓存目录：cache/</p>
+                <p>缓存数量：计算中...</p>
+                <button class="btn btn-warning btn-sm">清理缓存</button>
             </div>
         </div>
     </div>
