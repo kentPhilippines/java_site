@@ -22,8 +22,14 @@ public class SiteService {
 
     private final SiteMapper siteMapper;
 
-    public Site getSiteByUrl(String url) {
-        return siteMapper.findByUrl(url);
+    public Site getSiteByUrl(String host) {
+        // 先尝试通过域名匹配
+        Site site = siteMapper.findByName(host);
+        if (site != null) {
+            return site;
+        }
+        // 如果找不到，再尝试通过URL匹配
+        return siteMapper.findByUrl(host);
     }
 
     public Site getSiteByName(String name) {

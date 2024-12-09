@@ -27,6 +27,7 @@ import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
 public class AcmeService {
 
     private final CertificateService certificateService;
+    private final KeyStoreUtil keyStoreUtil;
     private static final String CERT_DIR = "certs";
     private static final String ACCOUNT_KEY_FILE = "certs/account.key";
     private static final String ACME_SERVER = "acme://letsencrypt.org";
@@ -149,7 +150,7 @@ public class AcmeService {
                     .create(session);
             log.info("ACME账户创建成功");
 
-            log.info("第4步: 创建证书订单");
+            log.info("��4步: 创建证书订单");
             Order order = account.newOrder()
                     .domains(domain)
                     .create();
@@ -251,6 +252,14 @@ public class AcmeService {
                 ZoneId.systemDefault()
             ).format(SQL_TIMESTAMP));
             certificateService.saveCertificate(cert);
+
+            // 创建密钥库
+            keyStoreUtil.createKeyStore(
+                domain,
+                cert.getCertFile(),
+                cert.getKeyFile(),
+                cert.getChainFile()
+            );
 
             // 清理验证信息
             challengeMap.clear();

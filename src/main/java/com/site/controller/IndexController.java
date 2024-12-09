@@ -58,11 +58,13 @@ public class IndexController {
             }
 
             String host = request.getHeader("Host");
-            log.info("请求主机: {}", host);
+            log.info("请求主机: {}, 路径: {}", host, path);
             Site site = siteService.getSiteByUrl(host);
             if (site == null) {
+                log.error("站点不存在: {}", host);
                 return "Error: 站点不存在";
             }
+            log.info("匹配到站点: {}, 目标URL: {}", site.getName(), site.getUrl());
 
             if (path.startsWith(adminPath)) {
                 return null;
