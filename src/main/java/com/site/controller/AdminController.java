@@ -8,14 +8,18 @@ import org.springframework.web.bind.annotation.RequestMapping;
 
 import javax.annotation.PostConstruct;
 import java.security.SecureRandom;
-
-import com.site.SiteApplication;
+import org.springframework.beans.factory.annotation.Autowired;
+import com.site.service.SiteService;
+import com.site.entity.Site;
 @Controller
 @RequestMapping("/${admin.path}")  // 默认使用UUID
 public class AdminController {
 
     @Value("${server.port:801}")
     private int serverPort;
+    
+    @Autowired
+    private SiteService siteService;
     
     @Value("${admin.path:}")
     private String adminPath;
@@ -40,6 +44,8 @@ public class AdminController {
         model.addAttribute("serverPort", serverPort);
         model.addAttribute("baseUrl", "https://sci.ncut.edu.cn");
         model.addAttribute("managePath", managePath);
+        model.addAttribute("adminPath", adminPath);
+        model.addAttribute("sites", siteService.getAllSites(new Site()));
         return "admin/index";
     }
 } 

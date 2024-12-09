@@ -48,6 +48,33 @@ public class DatabaseInitializer implements CommandLineRunner {
                 "base_url", "https://sci.ncut.edu.cn", 1
             );
             
+            jdbcTemplate.execute( "CREATE TABLE IF NOT EXISTS site (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                "name VARCHAR(50) NOT NULL," +
+                "url VARCHAR(255) NOT NULL," +
+                "description TEXT," +
+                "create_time DATETIME," +
+                "update_time DATETIME," +
+                "enabled INTEGER DEFAULT 1," +
+                "is_cache INTEGER DEFAULT 1," +
+                "sitemap INTEGER DEFAULT 1," +
+                "sync_source VARCHAR(255)" +
+                ")");
+
+            // 创建目标站点表
+            jdbcTemplate.execute(
+                "CREATE TABLE IF NOT EXISTS target_site (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                "domain VARCHAR(100) NOT NULL UNIQUE," +
+                "base_url TEXT NOT NULL," +
+                "enabled BOOLEAN DEFAULT 1," +
+                "description TEXT," +
+                "tdk TEXT," +
+                "create_time DATETIME," +
+                "update_time DATETIME" +
+                ")"
+            );
+            
             log.info("数据库初始化完成");
         } else {
             log.info("数据库文件已存在，跳过初始化");
