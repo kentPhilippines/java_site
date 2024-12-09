@@ -100,25 +100,20 @@ public class CertificateService {
     public void checkCertificatesStatus() {
         List<SiteCertificate> certificates = certificateMapper.findByStatus(SiteCertificate.STATUS_ACTIVE);
         LocalDateTime now = LocalDateTime.now();
-        String nowStr = now.format(SQL_TIMESTAMP);
         
         for (SiteCertificate cert : certificates) {
             try {
                 LocalDateTime expiresAt = LocalDateTime.parse(cert.getExpiresAt(), SQL_TIMESTAMP);
                 if (expiresAt.isBefore(now)) {
-                    updateCertificateStatus(cert.getId(), SiteCertificate.STATUS_EXPIRED);
+                    SiteCertificate update = new SiteCertificate();
+                    update.setId(cert.getId());
+                    update.setStatus(SiteCertificate.STATUS_EXPIRED);
+                    certificateMapper.update(update);
                     log.warn("证书已过期: {}", cert.getDomain());
                 }
             } catch (Exception e) {
                 log.error("检查证书状态失败: {}", cert.getDomain(), e);
             }
         }
-    }
-
-    private void updateCertificateStatus(Long id, String status) {
-        SiteCertificate cert = new SiteCertificate();
-        cert.setId(id);
-        cert.setStatus(status);
-        certificateMapper.update(cert);
     }
 } 

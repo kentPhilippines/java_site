@@ -26,15 +26,11 @@ public interface SiteCertificateMapper {
     void update(SiteCertificate certificate);
     
     @Delete("DELETE FROM site_certificates WHERE id = #{id}")
-    void delete(Long id);
+    void deleteById(Long id);
     
     @Select("SELECT * FROM site_certificates WHERE status = #{status}")
     List<SiteCertificate> findByStatus(String status);
     
-    @Update("UPDATE site_certificates SET status = #{status} WHERE id = #{id}")
-    void updateStatus(@Param("id") Long id, @Param("status") String status);
-
-    void deleteById(Long id);
-
+    @Select("SELECT * FROM site_certificates WHERE id = #{id}")
     SiteCertificate findById(Long id);
 } 

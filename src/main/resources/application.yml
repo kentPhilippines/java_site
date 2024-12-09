@@ -1,7 +1,4 @@
 server:
-  port: 443
-  http:
-    port: 80
   ssl:
     enabled: false
   http2:
@@ -16,7 +13,7 @@ spring:
       spec: maximumSize=1000,expireAfterWrite=1h
   datasource:
     driver-class-name: org.sqlite.JDBC
-    url: jdbc:sqlite:site.db
+    url: jdbc:sqlite:./data/site.db
   task:
     scheduling:
       pool:
@@ -34,10 +31,17 @@ mybatis:
   configuration:
     map-underscore-to-camel-case: true
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    lazy-loading-enabled: true
+    aggressive-lazy-loading: false
+    cache-enabled: true
+    call-setters-on-nulls: true
+    jdbc-type-for-null: NULL
+
 ssl:
   cert-path: certs
   auto-renew: true
   check-interval: 3600000
+
 proxy:
   allowed-domains:
     - sci.ncut.edu.cn

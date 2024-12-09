@@ -22,6 +22,7 @@ public class SiteService {
 
     private final SiteMapper siteMapper;
 
+    @Cacheable(key = "#host")
     public Site getSiteByUrl(String host) {
         // 先尝试通过域名匹配
         Site site = siteMapper.findByName(host);
@@ -32,26 +33,32 @@ public class SiteService {
         return siteMapper.findByUrl(host);
     }
 
+    @Cacheable(key = "#name")
     public Site getSiteByName(String name) {
         return siteMapper.findByName(name);
     }
 
-    public List<Site> getAllSites(Site site ) {
+    @Cacheable(key = "'all:' + #site.toString()")
+    public List<Site> getAllSites(Site site) {
         return siteMapper.selectList(site);
     }
 
+    @CacheEvict(allEntries = true)
     public void updateSite(Site site) {
         siteMapper.update(site);
     }
 
+    @CacheEvict(allEntries = true)
     public void addSite(Site site) {
         siteMapper.insert(site);
     }
 
+    @CacheEvict(allEntries = true)
     public void deleteSite(String name) {
         siteMapper.delete(name);
     }
 
+    @Cacheable(key = "#id")
     public Site selectById(Long id) {
         return siteMapper.selectById(id);
     }

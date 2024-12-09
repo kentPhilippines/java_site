@@ -7,9 +7,8 @@ import org.springframework.boot.web.servlet.server.ServletWebServerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import lombok.extern.slf4j.Slf4j;
-import java.io.File;
-import org.apache.tomcat.util.net.SSLHostConfig;
-import org.apache.tomcat.util.net.SSLHostConfigCertificate;
+import org.apache.coyote.http11.Http11NioProtocol;
+import org.apache.catalina.Context;
 
 @Slf4j
 @Configuration
@@ -21,28 +20,29 @@ public class HttpsConfig {
     @Value("${server.port:443}")
     private int httpsPort;
 
-    @Value("${ssl.cert-path:certs}")
-    private String certPath;
-
     @Bean
     public ServletWebServerFactory servletContainer() {
-        TomcatServletWebServerFactory tomcat = new TomcatServletWebServerFactory();
+        TomcatServletWebServerFactory tomcat = new TomcatServletWebServerFactory() {
+            @Override
+            protected void postProcessContext(Context context) {
+                // 可以在这里添加其他上下文配置
+            }
+        };
+        // 设置主端口（HTTPS）
+        tomcat.setPort(httpsPort);
         
         // 添加HTTP连接器
         tomcat.addAdditionalTomcatConnectors(createStandardConnector());
-        
-        // 配置主连接器为HTTPS
-        tomcat.setPort(httpsPort);
-        tomcat.setSsl(null); // 禁用默认的SSL配置
         
         return tomcat;
     }
 
     private Connector createStandardConnector() {
-        Connector connector = new Connector(TomcatServletWebServerFactory.DEFAULT_PROTOCOL);
+        Connector connector = new Connector(Http11NioProtocol.class.getName());
         connector.setPort(httpPort);
         connector.setSecure(false);
         connector.setScheme("http");
+        connector.setRedirectPort(httpsPort);
         return connector;
     }
 } 

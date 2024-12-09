@@ -150,7 +150,7 @@ public class AcmeService {
                     .create(session);
             log.info("ACME账户创建成功");
 
-            log.info("��4步: 创建证书订单");
+            log.info("第4步: 创建证书订单");
             Order order = account.newOrder()
                     .domains(domain)
                     .create();

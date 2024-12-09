@@ -9,7 +9,9 @@ import org.springframework.boot.web.servlet.context.ServletWebServerApplicationC
 import org.springframework.stereotype.Component;
 import java.io.File;
 import javax.annotation.PostConstruct;
-import org.apache.catalina.LifecycleState;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import org.apache.coyote.http11.Http11NioProtocol;
 
 @Slf4j
 @Component
@@ -26,24 +28,33 @@ public class SSLConfigManager {
 
     public void addCertificate(String domain, String keystorePath) {
         try {
-            TomcatWebServer tomcatWebServer = (TomcatWebServer) serverContext.getWebServer();
-            Connector[] connectors = tomcatWebServer.getTomcat().getService().findConnectors();
+            // 验证证书文件
+            File keystoreFile = new File(keystorePath);
+            if (!keystoreFile.exists()) {
+                throw new RuntimeException("证书文件不存在: " + keystorePath);
+            }
+
+            TomcatWebServer tomcat = (TomcatWebServer) serverContext.getWebServer();
+            Connector[] connectors = tomcat.getTomcat().getService().findConnectors();
             
             for (Connector connector : connectors) {
                 if (connector.getScheme().equals("https")) {
-                    if (connector.getState().isAvailable()) {
-                        // 为域名配置 SSL
-                        SSLHostConfig sslHostConfig = new SSLHostConfig();
-                        sslHostConfig.setHostName(domain);
-                        sslHostConfig.setCertificateKeystoreFile(new File(keystorePath).getAbsolutePath());
-                        sslHostConfig.setCertificateKeystorePassword(KEYSTORE_PASSWORD);
-                        sslHostConfig.setCertificateKeystoreType("PKCS12");
-                        
-                        connector.addSslHostConfig(sslHostConfig);
-                        log.info("成功为域名 {} 添加SSL证书配置", domain);
-                    } else {
-                        log.warn("Connector 不可用，无法添加SSL配置");
-                    }
+                    Http11NioProtocol protocol = (Http11NioProtocol) connector.getProtocolHandler();
+                    
+                    // 创建新的SSL配置
+                    SSLHostConfig sslHostConfig = new SSLHostConfig();
+                    sslHostConfig.setHostName(domain);
+                    sslHostConfig.setCertificateKeystoreFile(keystoreFile.getAbsolutePath());
+                    sslHostConfig.setCertificateKeystorePassword(KEYSTORE_PASSWORD);
+                    sslHostConfig.setCertificateKeystoreType("PKCS12");
+                    sslHostConfig.setProtocols("TLSv1.2,TLSv1.3");
+                    
+
+                    
+                    // 更新配置
+                    protocol.addSslHostConfig(sslHostConfig);
+
+                    log.info("成功为域名 {} 添加SSL证书配置", domain);
                 }
             }
         } catch (Exception e) {
@@ -51,6 +62,8 @@ public class SSLConfigManager {
             throw new RuntimeException("添加SSL证书配置失败: " + e.getMessage());
         }
     }
+
+
 
     private void scanExistingCertificates() {
         try {
@@ -76,4 +89,5 @@ public class SSLConfigManager {
             log.error("扫描证书失败", e);
         }
     }
+
 } 
