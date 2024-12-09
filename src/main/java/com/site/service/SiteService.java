@@ -1,7 +1,6 @@
 package com.site.service;
 
 import java.util.List;
-
 import org.springframework.stereotype.Service;
 import lombok.RequiredArgsConstructor;
 import com.site.entity.Site;
@@ -12,6 +11,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.extern.slf4j.Slf4j;
+
 
 
 @Service
@@ -32,7 +32,7 @@ public class SiteService {
         return siteMapper.findByName(name);
     }
 
-    public List<Site> getAllSites(Site site) {
+    public List<Site> getAllSites(Site site ) {
         return siteMapper.selectList(site);
     }
 

@@ -66,6 +66,7 @@
                             <td th:text="${site.createTime}"></td>
                             <td th:text="${site.updateTime}"></td>
                             <td>
+                                
                                 <button class="btn btn-sm btn-warning" th:onclick="'editSite(' + ${site.id} + ')'">编辑</button>
                                 <button class="btn btn-sm btn-danger" th:onclick="'deleteSite(' + ${site.name} + ')'">删除</button>
                             </td>
