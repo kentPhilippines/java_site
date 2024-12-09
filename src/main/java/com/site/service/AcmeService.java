@@ -10,6 +10,8 @@ import org.shredzone.acme4j.challenge.Http01Challenge;
 import org.shredzone.acme4j.util.*;
 import org.shredzone.acme4j.exception.AcmeException;
 import java.io.*;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.security.*;
 import java.nio.file.*;
 import java.time.*;
@@ -89,6 +91,37 @@ public class AcmeService {
         return response;
     }
 
+    private void checkDomainAccessibility(String domain, String token, String expectedResponse) throws Exception {
+        String checkUrl = "http://" + domain + "/.well-known/acme-challenge/" + token;
+        log.info("正在检查验证URL的可访问性: {}", checkUrl);
+        
+        try {
+            URL url = new URL(checkUrl);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(5000);
+            
+            int responseCode = conn.getResponseCode();
+            log.info("验证URL响应状态码: {}", responseCode);
+            
+            if (responseCode == 200) {
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
+                    String actualResponse = reader.readLine();
+                    log.info("验证URL返回内容: {}", actualResponse);
+                    if (!expectedResponse.equals(actualResponse)) {
+                        throw new Exception("验证响应内容不匹配 - 期望: " + expectedResponse + ", 实际: " + actualResponse);
+                    }
+                }
+            } else {
+                throw new Exception("验证URL返回非200状态码: " + responseCode);
+            }
+        } catch (Exception e) {
+            log.error("域名验证检查失败: {}", e.getMessage());
+            throw new Exception("域名验证检查失败: " + e.getMessage());
+        }
+    }
+
     public void requestCertificate(Site site) throws Exception {
         String domain = site.getName();
         log.info("开始为域名 {} 申请证书", domain);
@@ -129,20 +162,34 @@ public class AcmeService {
                     throw new Exception("无法获取HTTP验证挑战");
                 }
                 
-                log.info("获取到HTTP验证挑战 - Token: {}", challenge.getToken());
-                challengeMap.put(challenge.getToken(), challenge.getAuthorization());
+                String token = challenge.getToken();
+                String authorization = challenge.getAuthorization();
+                log.info("获取到HTTP验证挑战 - Token: {}, Authorization: {}", token, authorization);
+                
+                // 存储验证信息
+                challengeMap.put(token, authorization);
+                
+                // 检查验证URL是否可访问
+                log.info("等待5秒让验证信息生效...");
+                Thread.sleep(5000);
+                checkDomainAccessibility(domain, token, authorization);
                 
                 log.info("触发验证...");
                 challenge.trigger();
                 
                 log.info("等待验证完成...");
+                int attempts = 0;
                 while (auth.getStatus() != Status.VALID) {
                     if (auth.getStatus() == Status.INVALID) {
-                        log.error("域名验证失败 - 状态: {}", auth.getStatus());
-                        throw new Exception("域名验证失败");
+                        log.error("域名验证失败 - 状态: {}, 详细信息: {}", 
+                            auth.getStatus(), challenge.getJSON());
+                        throw new Exception("域名验证失败: " + challenge.getJSON());
                     }
-                    log.debug("当前验证状态: {}", auth.getStatus());
-                    Thread.sleep(3000L);
+                    if (++attempts > 20) { // 最多等待60秒
+                        throw new Exception("域名验证超时");
+                    }
+                    log.debug("当前验证状态: {}, 尝试次数: {}", auth.getStatus(), attempts);
+                    Thread.sleep(3000);
                     auth.update();
                 }
                 log.info("域名验证成功");

@@ -17,7 +17,7 @@
             <div class="card-body">
                 <div th:if="${certificate != null}">
                     <p>状态: <span th:text="${certificate.status}" th:class="${certificate.status == 'ACTIVE' ? 'text-success' : 'text-danger'}"></span></p>
-                    <p>过期时间: <span th:text="${#temporals.format(certificate.expiresAt, 'yyyy-MM-dd HH:mm:ss')}"></span></p>
+                    <p>过期时间: <span th:text="${certificate.expiresAt}"></span></p>
                     <p>域名: <span th:text="${certificate.domain}"></span></p>
                     <p>自动续期: <span th:text="${certificate.autoRenew ? '是' : '否'}"></span></p>
                 </div>
@@ -69,7 +69,7 @@
                                       th:class="${cert.status == 'ACTIVE' ? 'badge badge-success' : 'badge badge-danger'}">
                                 </span>
                             </td>
-                            <td th:text="${#temporals.format(cert.expiresAt, 'yyyy-MM-dd HH:mm:ss')}"></td>
+                            <td th:text="${cert.expiresAt}"></td>
                             <td>
                                 <button class="btn btn-sm btn-danger" th:onclick="'deleteCertificate(' + ${cert.id} + ')'">删除</button>
                             </td>
@@ -82,8 +82,9 @@
 
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        const adminPath = `[[${managePath}]]`;
+    <script th:inline="javascript">
+        const adminPath = [[${managePath}]];
+        
         function requestCertificate() {
             if (!confirm('确定要申请新的SSL证书吗？')) {
                 return;
