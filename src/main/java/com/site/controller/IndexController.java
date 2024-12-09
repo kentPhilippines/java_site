@@ -31,6 +31,11 @@ public class IndexController {
             
             log.info("代理请求: {} -> {}", path, fullUrl);
             
+            if (path.contains("login") || path.contains("auth")) {
+                response.sendRedirect(fullUrl);
+                return null;
+            }
+            
             if(isStaticResource(path)) {
                 response.sendRedirect(fullUrl);
                 return null;

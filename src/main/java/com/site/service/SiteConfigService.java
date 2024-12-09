@@ -1,7 +1,7 @@
 package com.site.service;
 
 import com.site.entity.SiteConfig;
-import com.site.repository.SiteConfigRepository;
+import com.site.mapper.SiteConfigMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -9,21 +9,23 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class SiteConfigService {
     
-    private final SiteConfigRepository configRepository;
-    private static final String DEFAULT_BASE_URL = "https://sci.ncut.edu.cn";
+    private final SiteConfigMapper configMapper;
     
     public String getBaseUrl() {
-        SiteConfig config = configRepository.findByKey("BASE_URL");
-        return config != null ? config.getValue() : DEFAULT_BASE_URL;
+        SiteConfig config = configMapper.findByKey("base_url");
+        return config != null ? config.getConfigValue() : null;
     }
     
     public void setBaseUrl(String baseUrl) {
-        SiteConfig config = configRepository.findByKey("BASE_URL");
-        if (config == null) {
-            config = new SiteConfig();
-            config.setKey("BASE_URL");
+        SiteConfig config = new SiteConfig();
+        config.setConfigKey("base_url");
+        config.setConfigValue(baseUrl);
+        config.setEnabled(true);
+        
+        if (configMapper.existsByKey("base_url") > 0) {
+            configMapper.update(config);
+        } else {
+            configMapper.insert(config);
         }
-        config.setValue(baseUrl);
-        configRepository.save(config);
     }
 } 

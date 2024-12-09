@@ -1,5 +1,5 @@
 server:
-  port: 80
+  port: 801
   servlet:
     encoding:
       charset: UTF-8
@@ -13,17 +13,14 @@ spring:
     caffeine:
       spec: maximumSize=1000,expireAfterWrite=1h
   datasource:
-    url: jdbc:h2:file:./sitedb
-    driver-class-name: org.h2.Driver
-    username: sa
-    password: 
-  jpa:
-    hibernate:
-      ddl-auto: update
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
+    driver-class-name: org.sqlite.JDBC
+    url: jdbc:sqlite:site.db
+
+mybatis:
+  type-aliases-package: com.site.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
 
 proxy:
   allowed-domains:
@@ -35,8 +32,6 @@ proxy:
     - .png
     - .gif
     - .ico
-    - .css
-    - .js
   forward-headers:
     - User-Agent
     - Accept
