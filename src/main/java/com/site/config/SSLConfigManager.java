@@ -9,8 +9,6 @@ import org.springframework.boot.web.servlet.context.ServletWebServerApplicationC
 import org.springframework.stereotype.Component;
 import java.io.File;
 import javax.annotation.PostConstruct;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import org.apache.coyote.http11.Http11NioProtocol;
 
 @Slf4j
@@ -27,6 +25,7 @@ public class SSLConfigManager {
     }
 
     public void addCertificate(String domain, String keystorePath) {
+        log.info("添加SSL证书配置: {} {}", domain, keystorePath);
         try {
             // 验证证书文件
             File keystoreFile = new File(keystorePath);
@@ -36,11 +35,10 @@ public class SSLConfigManager {
 
             TomcatWebServer tomcat = (TomcatWebServer) serverContext.getWebServer();
             Connector[] connectors = tomcat.getTomcat().getService().findConnectors();
-            
+            log.info("找到的连接器数量: {}", connectors.length);
             for (Connector connector : connectors) {
+                log.info("连接器: {}", connector.getScheme());
                 if (connector.getScheme().equals("https")) {
-                    Http11NioProtocol protocol = (Http11NioProtocol) connector.getProtocolHandler();
-                    
                     // 创建新的SSL配置
                     SSLHostConfig sslHostConfig = new SSLHostConfig();
                     sslHostConfig.setHostName(domain);
@@ -48,11 +46,8 @@ public class SSLConfigManager {
                     sslHostConfig.setCertificateKeystorePassword(KEYSTORE_PASSWORD);
                     sslHostConfig.setCertificateKeystoreType("PKCS12");
                     sslHostConfig.setProtocols("TLSv1.2,TLSv1.3");
-                    
-
-                    
                     // 更新配置
-                    protocol.addSslHostConfig(sslHostConfig);
+                    connector.addSslHostConfig(sslHostConfig);
 
                     log.info("成功为域名 {} 添加SSL证书配置", domain);
                 }
@@ -63,17 +58,23 @@ public class SSLConfigManager {
         }
     }
 
-
-
     private void scanExistingCertificates() {
         try {
             File certsDir = new File("certs");
-            if (!certsDir.exists() || !certsDir.isDirectory()) {
+            if (!certsDir.exists()) {
+                certsDir.mkdirs();
+                log.info("创建证书目录: {}", certsDir.getAbsolutePath());
+                return;
+            }
+
+            if (!certsDir.isDirectory()) {
+                log.error("证书路径不是目录: {}", certsDir.getAbsolutePath());
                 return;
             }
 
             File[] domainDirs = certsDir.listFiles(File::isDirectory);
             if (domainDirs == null) {
+                log.warn("证书目录为空");
                 return;
             }
 
@@ -83,11 +84,12 @@ public class SSLConfigManager {
                     String domain = domainDir.getName();
                     addCertificate(domain, keystoreFile.getAbsolutePath());
                     log.info("已加载域名 {} 的SSL证书", domain);
+                } else {
+                    log.warn("域名 {} 的keystore文件不存在: {}", domainDir.getName(), keystoreFile.getAbsolutePath());
                 }
             }
         } catch (Exception e) {
             log.error("扫描证书失败", e);
         }
     }
-
 } 
