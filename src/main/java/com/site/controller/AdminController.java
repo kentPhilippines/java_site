@@ -71,6 +71,8 @@ public class AdminController {
         model.addAttribute("certificate", currentCert);
         model.addAttribute("certificates", certificates);
         model.addAttribute("adminPath", adminPath);
+        model.addAttribute("managePath", managePath);   
+        
         
         return "admin/certificate";
     }
