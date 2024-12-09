@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import java.io.File;
 import javax.annotation.PostConstruct;
 import org.apache.coyote.http11.Http11NioProtocol;
+import org.apache.tomcat.util.net.SSLImplementation;
 
 @Slf4j
 @Component
@@ -38,66 +39,51 @@ public class SSLConfigManager {
             TomcatWebServer tomcat = (TomcatWebServer) serverContext.getWebServer();
             Connector[] connectors = tomcat.getTomcat().getService().findConnectors();
             log.info("找到的连接器数量: {}", connectors.length);
-            
+
             for (Connector connector : connectors) {
                 log.info("连接器: {} {}", connector.getScheme(), connector.getPort());
                 if (connector.getScheme().equals("https")) {
                     Http11NioProtocol protocol = (Http11NioProtocol) connector.getProtocolHandler();
+
+                    // 确保SSL已启用
                     protocol.setSSLEnabled(true);
-                    
-                    // 检查现有配置
-                    SSLHostConfig[] existingConfigs = connector.findSslHostConfigs();
-                    log.info("现有SSL主机配置数量: {}", existingConfigs.length);
-                    for (SSLHostConfig config : existingConfigs) {
-                        log.info("已配置的域名: {}, 证书文件: {}", 
-                            config.getHostName(), 
-                            config.getCertificateKeystoreFile());
-                    }
-                    
-                   
-                    // 创建新的SSL配置
+                    // 创建域名特定的SSL配置
                     SSLHostConfig sslHostConfig = new SSLHostConfig();
                     sslHostConfig.setHostName(domain);
-                    
+                    sslHostConfig.setProtocols("+TLSv1.2,+TLSv1.3");
+
                     // 创建证书配置
                     SSLHostConfigCertificate cert = new SSLHostConfigCertificate(sslHostConfig, Type.RSA);
                     cert.setCertificateKeystoreFile(keystoreFile.getAbsolutePath());
                     cert.setCertificateKeystorePassword(KEYSTORE_PASSWORD);
                     cert.setCertificateKeystoreType("PKCS12");
-                    
+
                     // 添加证书配置到主机配置
                     sslHostConfig.addCertificate(cert);
-                    
-                    // 配置TLS协议
-                    sslHostConfig.setProtocols("+TLSv1.2,+TLSv1.3");
-                    
+
                     // 配置加密套件
                     sslHostConfig.setCiphers(
-                        "ECDHE-RSA-AES128-GCM-SHA256," +
-                        "ECDHE-RSA-AES256-GCM-SHA384," +
-                        "DHE-RSA-AES128-GCM-SHA256," +
-                        "DHE-RSA-AES256-GCM-SHA384"
-                    );
-                    
+                            "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256," +
+                                    "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384," +
+                                    "TLS_DHE_RSA_WITH_AES_128_GCM_SHA256," +
+                                    "TLS_DHE_RSA_WITH_AES_256_GCM_SHA384");
                     // 更新配置
                     connector.addSslHostConfig(sslHostConfig);
                     log.info("成功为域名 {} 添加SSL证书配置", domain);
-                    
+
                     // 验证配置是否生效
-                    SSLHostConfig[] sslHostConfigs = connector.findSslHostConfigs();
-                    for (SSLHostConfig config : sslHostConfigs) {
-                        log.info("SSL配置验证成功 - 域名: {}, 证书文件: {}, 协议: {}", 
-                            config.getHostName(),
-                            config.getCertificates().stream()
-                                .findFirst()
-                                .map(SSLHostConfigCertificate::getCertificateKeystoreFile)
-                                .orElse("未找到"),
-                            config.getProtocols());
+                    SSLHostConfig[] configs = connector.findSslHostConfigs();
+                    for (SSLHostConfig config : configs) {
+                        log.info("SSL配置 - 域名: {}, 协议: {}, 证书数量: {}",
+                                config.getHostName(),
+                                config.getProtocols(),
+                                config.getCertificates().size());
                     }
                 }
             }
         } catch (Exception e) {
             log.error("添加SSL证书配置失败: {}", e.getMessage(), e);
+            throw new RuntimeException("添加SSL证书配置失败: " + e.getMessage());
         }
     }
 
