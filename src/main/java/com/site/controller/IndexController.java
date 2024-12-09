@@ -58,6 +58,7 @@ public class IndexController {
             }
 
             String host = request.getHeader("Host");
+            log.info("请求主机: {}", host);
             Site site = siteService.getSiteByUrl(host);
             if (site == null) {
                 return "Error: 站点不存在";

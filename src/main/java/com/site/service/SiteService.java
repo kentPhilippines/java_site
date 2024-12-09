@@ -22,12 +22,10 @@ public class SiteService {
 
     private final SiteMapper siteMapper;
 
-    @Cacheable(key = "#url")
     public Site getSiteByUrl(String url) {
         return siteMapper.findByUrl(url);
     }
 
-    @Cacheable(key = "#name")
     public Site getSiteByName(String name) {
         return siteMapper.findByName(name);
     }
@@ -36,20 +34,14 @@ public class SiteService {
         return siteMapper.selectList(site);
     }
 
-    @Transactional
-    @CacheEvict(key = "#site.name")
     public void updateSite(Site site) {
         siteMapper.update(site);
     }
 
-    @Transactional
-    @CacheEvict(key = "#site.name")
     public void addSite(Site site) {
         siteMapper.insert(site);
     }
 
-    @Transactional
-    @CacheEvict(key = "#name")
     public void deleteSite(String name) {
         siteMapper.delete(name);
     }
