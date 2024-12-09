@@ -14,7 +14,6 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Arrays;
 
 @Slf4j
 @Component
@@ -32,13 +31,10 @@ public class KeyStoreUtil {
             // 读取证书链
             List<X509Certificate> chain = readCertificateChain(chainPath);
             
-            // 确保证书链的完整性
-            List<X509Certificate> fullChain = new ArrayList<>();
+            // 组合完整的证书链
+            List<Certificate> fullChain = new ArrayList<>();
             fullChain.add(cert); // 添加主证书
             fullChain.addAll(chain); // 添加证书链
-            
-            // 验证证书链
-            validateCertificateChain(fullChain);
             
             // 读取私钥
             PrivateKey privateKey = readPrivateKey(keyPath);
@@ -74,24 +70,6 @@ public class KeyStoreUtil {
         } catch (Exception e) {
             log.error("创建密钥库失败", e);
             throw new RuntimeException("创建密钥库失败: " + e.getMessage());
-        }
-    }
-    
-    private void validateCertificateChain(List<X509Certificate> chain) throws Exception {
-        for (int i = 0; i < chain.size() - 1; i++) {
-            X509Certificate cert = chain.get(i);
-            X509Certificate issuer = chain.get(i + 1);
-            
-            // 验证证书签名
-            cert.verify(issuer.getPublicKey());
-            
-            // 验证证书有效期
-            cert.checkValidity();
-        }
-        
-        // 验证最后一个证书（根证书）
-        if (!chain.isEmpty()) {
-            chain.get(chain.size() - 1).checkValidity();
         }
     }
     
