@@ -67,7 +67,7 @@
                             <td th:text="${site.updateTime}"></td>
                             <td>
                                 <button class="btn btn-sm btn-warning" th:onclick="'editSite(' + ${site.id} + ')'">编辑</button>
-                                <button class="btn btn-sm btn-danger" th:onclick="'deleteSite(' + ${site.id} + ')'">删除</button>
+                                <button class="btn btn-sm btn-danger" th:onclick="'deleteSite(' + ${site.name} + ')'">删除</button>
                             </td>
                         </tr>
                     </tbody>
@@ -193,10 +193,10 @@
         }
         
         // 删除站点
-        function deleteSite(id) {
+        function deleteSite(name) {
             if (confirm('确定要删除这个站点吗？')) {
                 // 使用动态管理路径
-                fetch(`/${adminPath}/sites/${id}`, {
+                fetch(`/${adminPath}/sites/${name}`, {
                     method: 'DELETE'
                 }).then(() => {
                     window.location.reload();

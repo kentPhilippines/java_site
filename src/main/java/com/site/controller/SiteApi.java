@@ -32,9 +32,9 @@ public class SiteApi {
         site.setUpdateTime(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()));
         siteService.addSite(site);
     }
-    @DeleteMapping("/sites/{id}")
-    public void deleteSite(@PathVariable Long id) {
-        siteService.deleteSite(id);
+    @DeleteMapping("/sites/{name}")
+    public void deleteSite(@PathVariable String name) {
+        siteService.deleteSite(name);
     }
 
     @PutMapping("/sites/{id}")

@@ -1,134 +1,125 @@
 package com.site.util;
 
 import org.springframework.stereotype.Component;
+
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import lombok.Data;
+import com.site.entity.Site;
+import com.site.service.SiteService;
+import org.springframework.scheduling.annotation.Scheduled;
+
 import java.util.concurrent.TimeUnit;
 
+@Slf4j
 @Component
+@RequiredArgsConstructor
 public class CacheUtil {
-    
-    // 内存缓存
+
     private final Map<String, CacheItem> memoryCache = new ConcurrentHashMap<>();
-    // 缓存文件根目录
-    private final String CACHE_DIR = "cache";
-    // 缓存过期时间（1小时）
-    private static final long EXPIRE_TIME = 3600000;
-    // 清理任务执行间隔（5分钟）
-    private static final long CLEAN_INTERVAL = 300000;
-    
-    public CacheUtil() {
-        // 创建缓存目录
+    private static final String CACHE_DIR = "cache";
+    private static final long EXPIRE_TIME = TimeUnit.HOURS.toMillis(1);  // 1小时过期
+    private final SiteService siteService;
+
+    public void put(String key, String value, Site site) {
+        memoryCache.put(key, new CacheItem(value));
         try {
-            Files.createDirectories(Paths.get(CACHE_DIR));
+            String baseDir = generateBasePath(site);
+            String filePath = getFilePath(key, baseDir);
+            Files.createDirectories(Paths.get(filePath).getParent());
+            Files.write(Paths.get(filePath), value.getBytes(StandardCharsets.UTF_8));
+            log.info("缓存已保存到: {}", filePath);
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("保存缓存文件失败", e);
         }
-        
-        // 启动定时清理任务
-        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-        scheduler.scheduleAtFixedRate(this::cleanExpiredCache, CLEAN_INTERVAL, CLEAN_INTERVAL, TimeUnit.MILLISECONDS);
     }
-    
-    /**
-     * 获取缓存内容
-     */
-    public String get(String key) {
+
+    public void putBytes(String key, byte[] value, Site site) {
+        try {
+            String baseDir = generateBasePath(site);
+            String filePath = getFilePath(key, baseDir);
+            Files.createDirectories(Paths.get(filePath).getParent());
+            Files.write(Paths.get(filePath), value);
+            log.info("二进制文件已缓存: {}", filePath);
+        } catch (IOException e) {
+            log.error("保存二进制文件失败", e);
+        }
+    }
+
+    public byte[] getBytes(String key, Site site) {
+        try {
+            String baseDir = generateBasePath(site);
+            String filePath = getFilePath(key, baseDir);
+            if (Files.exists(Paths.get(filePath))) {
+                return Files.readAllBytes(Paths.get(filePath));
+            }
+        } catch (IOException e) {
+            log.error("读取二进制文件失败", e);
+        }
+        return null;
+    }
+
+    public String get(String key, Site site) {
         // 先从内存缓存获取
         CacheItem item = memoryCache.get(key);
         if (item != null && !item.isExpired()) {
             return item.getValue();
         }
-        
-        // 如果内存中没有，从文件获取
-        String filePath = getFilePath(key);
+
+        // 如果内存中没有或已过期，从文件获取
         try {
-            File cacheFile = new File(filePath);
-            if (cacheFile.exists() && !isFileExpired(cacheFile)) {
-                String content = new String(Files.readAllBytes(cacheFile.toPath()), StandardCharsets.UTF_8);
-                // 放入内存缓存
+            String baseDir = generateBasePath(site);
+            String filePath = getFilePath(key, baseDir);
+            if (Files.exists(Paths.get(filePath))) {
+                String content = new String(Files.readAllBytes(Paths.get(filePath)), StandardCharsets.UTF_8);
                 memoryCache.put(key, new CacheItem(content));
                 return content;
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("读取缓存文件失败", e);
         }
-        
+
         return null;
     }
-    
-    /**
-     * 设置缓存内容
-     */
-    public void put(String key, String value) {
-        // 存入内存缓存
-        memoryCache.put(key, new CacheItem(value));
-        
-        // 存入文件
-        String filePath = getFilePath(key);
+
+    private String generateBasePath(Site site) {
+        return CACHE_DIR + File.separator + site.getName() + File.separator;
+    }
+
+    private String getFilePath(String key, String baseDir) {
         try {
-            Files.write(Paths.get(filePath), value.getBytes(StandardCharsets.UTF_8));
-        } catch (IOException e) {
-            e.printStackTrace();
+            // 移除协议和域名部分，只保留路径
+            String relativePath = key.replaceFirst("^https?://[^/]+", "");
+            if (relativePath.isEmpty()) {
+                relativePath = "index.html";
+            }
+            // 确保路径安全，移除 .. 等危险字符
+            relativePath = relativePath.replaceAll("[^a-zA-Z0-9./\\-_]", "_");
+            return baseDir + relativePath;
+        } catch (Exception e) {
+            log.error("生成文件路径失败", e);
+            // 降级处理：使用简单文件名
+            return baseDir + File.separator + 
+                    key.replaceAll("[^a-zA-Z0-9.]", "_");
         }
     }
-    
-    /**
-     * 获取缓存文件路径
-     */
-    private String getFilePath(String key) {
-        // 将URL转换为合法的文件名
-        String fileName = key.replaceAll("[^a-zA-Z0-9]", "_");
-        return CACHE_DIR + File.separator + fileName;
-    }
-    
-    /**
-     * 检查文件是否过期
-     */
-    private boolean isFileExpired(File file) {
-        return System.currentTimeMillis() - file.lastModified() > EXPIRE_TIME;
-    }
-    
-    /**
-     * 清理过期缓存
-     */
-    private void cleanExpiredCache() {
-        // 清理内存缓存
-        memoryCache.entrySet().removeIf(entry -> entry.getValue().isExpired());
-        
-        // 清理文件缓存
-        try {
-            Files.walk(Paths.get(CACHE_DIR))
-                .filter(Files::isRegularFile)
-                .map(Path::toFile)
-                .filter(this::isFileExpired)
-                .forEach(File::delete);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-    
-    /**
-     * 缓存项内部类
-     */
+
+    @Data
     private static class CacheItem {
         private final String value;
         private final long timestamp;
-        
+
         public CacheItem(String value) {
             this.value = value;
             this.timestamp = System.currentTimeMillis();
         }
-        
-        public String getValue() {
-            return value;
-        }
-        
+
         public boolean isExpired() {
             return System.currentTimeMillis() - timestamp > EXPIRE_TIME;
         }

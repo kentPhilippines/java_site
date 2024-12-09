@@ -1,5 +1,7 @@
 package com.site.entity;
 import lombok.Data;
+import java.time.LocalDateTime;
+
 @Data
 public class Site {
     /**
@@ -42,7 +44,12 @@ public class Site {
      * 同步源文件地址
      */
     private String syncSource;
-
-
-
+    /**
+     * 网站地图URL
+     */
+    private String sitemapUrl;
+    /**
+     * 最后生成时间
+     */
+    private LocalDateTime lastGenerate;
 }

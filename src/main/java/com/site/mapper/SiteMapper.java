@@ -40,9 +40,18 @@ public interface SiteMapper {
     int update(Site site);
 
     @Delete("DELETE FROM site WHERE id = #{id}")
-    void delete(Long id);
+    void deleteById(Long id);
 
     @Select("SELECT * FROM site WHERE enabled = 1")
     List<Site> selectEnabledSites();
+
+    @Select("SELECT * FROM site WHERE name = #{name}")
+    Site findByName(String name);
+
+    @Select("SELECT * FROM site WHERE url = #{url}")
+    Site findByUrl(String url);
+
+    @Delete("DELETE FROM site WHERE name = #{name}")
+    void delete(String name);
 
 }

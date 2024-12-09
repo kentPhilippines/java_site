@@ -1,5 +1,5 @@
 server:
-  port: 801
+  port: 80
   servlet:
     encoding:
       charset: UTF-8
@@ -15,6 +15,10 @@ spring:
   datasource:
     driver-class-name: org.sqlite.JDBC
     url: jdbc:sqlite:site.db
+  task:
+    scheduling:
+      pool:
+        size: 5
 
 mybatis:
   type-aliases-package: com.site.entity
@@ -27,11 +31,48 @@ proxy:
     - sci.ncut.edu.cn
   cache-enabled: true
   static-extensions:
+    # 图片格式
     - .jpg
     - .jpeg
     - .png
     - .gif
+    - .bmp
+    - .webp
     - .ico
+    - .svg
+    - .tiff
+    - .raw
+    # 字体文件
+    - .woff
+    - .woff2
+    - .ttf
+    - .eot
+    - .otf
+    
+    # 媒体文件
+    - .mp4
+    - .mp3
+    - .avi
+    - .wmv
+    - .flv
+    - .mov
+    - .wav
+    
+    # 文档文件
+    - .pdf
+    - .doc
+    - .docx
+    - .xls
+    - .xlsx
+    - .ppt
+    - .pptx
+    
+    # 压缩文件
+    - .zip
+    - .rar
+    - .7z
+    - .tar
+    - .gz
   forward-headers:
     - User-Agent
     - Accept
