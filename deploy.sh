@@ -199,11 +199,38 @@ check_maven() {
     echo -e "${GREEN}Maven版本: $mvn_version${NC}"
 }
 
-# 检查Git环境
-check_git() {
+# 检查并安装Git
+check_and_install_git() {
     if ! command -v git &> /dev/null; then
-        echo -e "${RED}错误: 未安装Git${NC}"
-        exit 1
+        echo -e "${YELLOW}Git未安装，正在安装...${NC}"
+        
+        # 检测操作系统类型
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            # macOS
+            if command -v brew &> /dev/null; then
+                brew install git
+            else
+                echo -e "${RED}请先安装Homebrew，然后重新运行此脚本${NC}"
+                echo "安装Homebrew命令: /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+                exit 1
+            fi
+        elif [[ -f /etc/debian_version ]]; then
+            # Debian/Ubuntu
+            sudo apt-get update
+            sudo apt-get install -y git
+        elif [[ -f /etc/redhat-release ]]; then
+            # CentOS/RHEL
+            sudo yum install -y git
+        else
+            echo -e "${RED}不支持的操作系统，请手动安装Git${NC}"
+            exit 1
+        fi
+        
+        # 验证安装
+        if ! command -v git &> /dev/null; then
+            echo -e "${RED}Git安装失败${NC}"
+            exit 1
+        fi
     fi
     git_version=$(git --version)
     echo -e "${GREEN}Git版本: $git_version${NC}"
@@ -328,7 +355,7 @@ main() {
     echo -e "${GREEN}开始部署 ${APP_NAME}${NC}"
     check_java
     check_maven
-    check_git
+    check_and_install_git
     create_directories
     fetch_code
     build_code

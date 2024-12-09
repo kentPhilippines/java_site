@@ -4,22 +4,20 @@ import com.site.entity.Site;
 import com.site.entity.SiteCertificate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 import org.shredzone.acme4j.*;
 import org.shredzone.acme4j.challenge.Http01Challenge;
+import org.shredzone.acme4j.util.*;
 import org.shredzone.acme4j.exception.AcmeException;
-import org.shredzone.acme4j.util.CSRBuilder;
-import org.shredzone.acme4j.util.KeyPairUtils;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-
 import java.io.*;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.security.KeyPair;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
+import java.security.*;
+import java.nio.file.*;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
 import java.util.concurrent.ConcurrentHashMap;
+import javax.annotation.PostConstruct;
+import java.security.cert.X509Certificate;
+import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
 
 @Slf4j
 @Service
@@ -27,117 +25,193 @@ import java.util.concurrent.ConcurrentHashMap;
 public class AcmeService {
 
     private final CertificateService certificateService;
-    private static final String LETS_ENCRYPT_STAGING = "acme://letsencrypt.org/staging";
-    private static final String LETS_ENCRYPT_PROD = "acme://letsencrypt.org";
-
-    @Value("${ssl.cert-path}")
-    private String certBasePath;
-
-    // 存储HTTP验证的token��内容
+    private static final String CERT_DIR = "certs";
+    private static final String ACCOUNT_KEY_FILE = "certs/account.key";
+    private static final String ACME_SERVER = "acme://letsencrypt.org";
+    private static final DateTimeFormatter SQL_TIMESTAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    
+    // 存储HTTP验证的token和响应
     private final ConcurrentHashMap<String, String> challengeMap = new ConcurrentHashMap<>();
 
-    public String getChallengeResponse(String token) {
-        return challengeMap.get(token);
+    @PostConstruct
+    public void init() {
+        try {
+            createCertDirectory();
+            ensureAccountKeyExists();
+            log.info("ACME服务初始化完成");
+        } catch (Exception e) {
+            log.error("初始化ACME服务失败", e);
+        }
     }
 
-    public void requestCertificate(Site site) {
-        try {
-            String domain = site.getName();
-            // 创建账户密钥对
-            Path accountKeyPath = Paths.get(certBasePath, "account.key");
-            KeyPair accountKeyPair;
-            if (Files.exists(accountKeyPath)) {
-                try (FileReader fr = new FileReader(accountKeyPath.toFile())) {
-                    accountKeyPair = KeyPairUtils.readKeyPair(fr);
-                }
-            } else {
-                accountKeyPair = KeyPairUtils.createKeyPair(2048);
-                try (FileWriter fw = new FileWriter(accountKeyPath.toFile())) {
-                    KeyPairUtils.writeKeyPair(accountKeyPair, fw);
-                }
-            }
+    private void createCertDirectory() throws IOException {
+        Path certDir = Paths.get(CERT_DIR);
+        if (!Files.exists(certDir)) {
+            Files.createDirectories(certDir);
+            log.info("创建证书目录: {}", certDir);
+        }
+    }
 
-            // 创建ACME会话
-            Session session = new Session(LETS_ENCRYPT_PROD);
+    private void ensureAccountKeyExists() throws Exception {
+        Path accountKeyPath = Paths.get(ACCOUNT_KEY_FILE);
+        if (!Files.exists(accountKeyPath)) {
+            log.info("账户密钥不存在，正在生成新的密钥对...");
+            KeyPair keyPair = KeyPairUtils.createKeyPair(2048);
+            try (FileWriter fw = new FileWriter(accountKeyPath.toFile())) {
+                KeyPairUtils.writeKeyPair(keyPair, fw);
+            }
+            log.info("生成新的ACME账户密钥: {}", accountKeyPath);
+        } else {
+            log.info("使用现有的ACME账户密钥: {}", accountKeyPath);
+        }
+    }
+
+    private KeyPair loadOrCreateAccountKey() throws Exception {
+        File accountKeyFile = new File(ACCOUNT_KEY_FILE);
+        if (accountKeyFile.exists()) {
+            log.info("正在加载现有的账户密钥...");
+            try (FileReader fr = new FileReader(accountKeyFile)) {
+                return KeyPairUtils.readKeyPair(fr);
+            }
+        } else {
+            log.info("正在生成新的账户密钥...");
+            KeyPair keyPair = KeyPairUtils.createKeyPair(2048);
+            try (FileWriter fw = new FileWriter(accountKeyFile)) {
+                KeyPairUtils.writeKeyPair(keyPair, fw);
+            }
+            return keyPair;
+        }
+    }
+
+    public String getChallengeResponse(String token) {
+        String response = challengeMap.get(token);
+        log.debug("收到验证请求 - Token: {}, Response: {}", token, response);
+        return response;
+    }
+
+    public void requestCertificate(Site site) throws Exception {
+        String domain = site.getName();
+        log.info("开始为域名 {} 申请证书", domain);
+
+        try {
+            log.info("第1步: 准备证书申请环境");
+            createCertDirectory();
+            KeyPair accountKey = loadOrCreateAccountKey();
+
+            log.info("第2步: 创建证书记录");
+            SiteCertificate cert = new SiteCertificate();
+            cert.setSiteId(site.getId());
+            cert.setDomain(domain);
+            cert.setStatus(SiteCertificate.STATUS_PENDING);
+            cert.setAutoRenew(true);
+            cert.setCertType(SiteCertificate.TYPE_ACME);
+            cert.setCreatedAt(LocalDateTime.now().format(SQL_TIMESTAMP));
+            certificateService.saveCertificate(cert);
+
+            log.info("第3步: 创建ACME会话和账户");
+            Session session = new Session(ACME_SERVER);
             Account account = new AccountBuilder()
                     .agreeToTermsOfService()
-                    .useKeyPair(accountKeyPair)
+                    .useKeyPair(accountKey)
                     .create(session);
+            log.info("ACME账户创建成功");
 
-            // 开始订单流程
+            log.info("第4步: 创建证书订单");
             Order order = account.newOrder()
                     .domains(domain)
                     .create();
+            log.info("证书订单创建成功");
 
-            // 获取HTTP验证
+            log.info("第5步: 开始域名验证");
             for (Authorization auth : order.getAuthorizations()) {
                 Http01Challenge challenge = auth.findChallenge(Http01Challenge.TYPE);
+                if (challenge == null) {
+                    throw new Exception("无法获取HTTP验证挑战");
+                }
+                
+                log.info("获取到HTTP验证挑战 - Token: {}", challenge.getToken());
                 challengeMap.put(challenge.getToken(), challenge.getAuthorization());
+                
+                log.info("触发验证...");
                 challenge.trigger();
+                
+                log.info("等待验证完成...");
+                while (auth.getStatus() != Status.VALID) {
+                    if (auth.getStatus() == Status.INVALID) {
+                        log.error("域名验证失败 - 状态: {}", auth.getStatus());
+                        throw new Exception("域名验证失败");
+                    }
+                    log.debug("当前验证状态: {}", auth.getStatus());
+                    Thread.sleep(3000L);
+                    auth.update();
+                }
+                log.info("域名验证成功");
             }
 
-            // 等待验证完成
-            while (order.getStatus() != Status.READY) {
-                Thread.sleep(3000L);
-                order.update();
-            }
-
-            // 生成域名密钥对和CSR
+            log.info("第6步: 生成域名密钥对和CSR");
             KeyPair domainKeyPair = KeyPairUtils.createKeyPair(2048);
             CSRBuilder csrBuilder = new CSRBuilder();
             csrBuilder.addDomain(domain);
             csrBuilder.sign(domainKeyPair);
+            log.info("CSR生成成功");
 
-            // 完成订单
+            log.info("第7步: 请求证书签发");
             order.execute(csrBuilder.getEncoded());
             while (order.getStatus() != Status.VALID) {
+                if (order.getStatus() == Status.INVALID) {
+                    log.error("证书签发失败 - 状态: {}", order.getStatus());
+                    throw new Exception("证书签发失败");
+                }
+                log.debug("当前订单状态: {}", order.getStatus());
                 Thread.sleep(3000L);
                 order.update();
             }
+            log.info("证书签发成功");
 
-            // 保存证书
-            Path certPath = Paths.get(certBasePath, domain);
+            log.info("第8步: 保存证书文件");
+            Path certPath = Paths.get(CERT_DIR, domain);
             Files.createDirectories(certPath);
 
             // 保存私钥
-            try (FileWriter fw = new FileWriter(certPath.resolve("privkey.pem").toFile())) {
-                KeyPairUtils.writeKeyPair(domainKeyPair, fw);
+            log.info("保存私钥...");
+            try (JcaPEMWriter pemWriter = new JcaPEMWriter(new FileWriter(certPath.resolve("privkey.pem").toFile()))) {
+                pemWriter.writeObject(domainKeyPair.getPrivate());
             }
 
-            // 保存证书
-            Certificate certificate = order.getCertificate();
-            try (FileWriter fw = new FileWriter(certPath.resolve("cert.pem").toFile())) {
-                certificate.writeCertificate(fw);
+            // 获取并保存证书
+            log.info("保存证书...");
+            org.shredzone.acme4j.Certificate certificate = order.getCertificate();
+            X509Certificate x509Certificate = certificate.getCertificate();
+            
+            try (JcaPEMWriter pemWriter = new JcaPEMWriter(new FileWriter(certPath.resolve("cert.pem").toFile()))) {
+                pemWriter.writeObject(x509Certificate);
             }
 
-            // 保存证书链
-            try (FileWriter fw = new FileWriter(certPath.resolve("chain.pem").toFile())) {
-                certificate.writeCertificate(fw);
+            log.info("保存证书链...");
+            try (JcaPEMWriter pemWriter = new JcaPEMWriter(new FileWriter(certPath.resolve("chain.pem").toFile()))) {
+                for (X509Certificate cert509 : certificate.getCertificateChain()) {
+                    pemWriter.writeObject(cert509);
+                }
             }
 
-            // 创建证书记录
-            SiteCertificate siteCert = new SiteCertificate();
-            siteCert.setSiteId(site.getId());
-            siteCert.setDomain(domain);
-            siteCert.setCertType(SiteCertificate.TYPE_AUTO);
-            siteCert.setCertFile(certPath.resolve("cert.pem").toString());
-            siteCert.setKeyFile(certPath.resolve("privkey.pem").toString());
-            siteCert.setChainFile(certPath.resolve("chain.pem").toString());
-            siteCert.setStatus(SiteCertificate.STATUS_ACTIVE);
-            siteCert.setAutoRenew(true);
-            siteCert.setCreatedAt(LocalDateTime.now());
-            siteCert.setExpiresAt(LocalDateTime.ofInstant(
-                certificate.getCertificate().getNotAfter().toInstant(), 
+            log.info("第9步: 更新证书记录");
+            cert.setStatus(SiteCertificate.STATUS_ACTIVE);
+            cert.setCertFile(certPath.resolve("cert.pem").toString());
+            cert.setKeyFile(certPath.resolve("privkey.pem").toString());
+            cert.setChainFile(certPath.resolve("chain.pem").toString());
+            cert.setExpiresAt(LocalDateTime.ofInstant(
+                x509Certificate.getNotAfter().toInstant(),
                 ZoneId.systemDefault()
-            ));
-
-            certificateService.saveCertificate(siteCert);
+            ).format(SQL_TIMESTAMP));
+            certificateService.saveCertificate(cert);
 
             // 清理验证信息
             challengeMap.clear();
-
+            
+            log.info("证书申请完成: {}", domain);
+            log.info("证书有效期至: {}", cert.getExpiresAt());
         } catch (Exception e) {
-            log.error("申请证书失败: {}", e.getMessage(), e);
+            log.error("申请证书失败: {} - {}", domain, e.getMessage(), e);
             throw new RuntimeException("申请证书失败: " + e.getMessage());
         }
     }

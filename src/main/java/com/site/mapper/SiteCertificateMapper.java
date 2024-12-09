@@ -33,4 +33,8 @@ public interface SiteCertificateMapper {
     
     @Update("UPDATE site_certificates SET status = #{status} WHERE id = #{id}")
     void updateStatus(@Param("id") Long id, @Param("status") String status);
+
+    void deleteById(Long id);
+
+    SiteCertificate findById(Long id);
 } 

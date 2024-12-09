@@ -49,7 +49,12 @@ public class IndexController {
             // 处理ACME验证请求
             if (path.startsWith("/.well-known/acme-challenge/")) {
                 String token = path.substring("/.well-known/acme-challenge/".length());
-                return acmeService.getChallengeResponse(token);
+                String challengeResponse = acmeService.getChallengeResponse(token);
+                if (challengeResponse != null) {
+                    response.setContentType("text/plain");
+                    response.getWriter().write(challengeResponse);
+                    return null;
+                }
             }
 
             String host = request.getHeader("Host");
