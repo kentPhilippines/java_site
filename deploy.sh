@@ -323,58 +323,6 @@ start_service() {
     fi
 }
 
-# 创建管理脚本
-create_manage_script() {
-    cat > ${WORK_DIR}/manage.sh << EOF
-#!/bin/bash
-MVN_CMD="${MVN_CMD}"
-
-case "\$1" in
-    start)
-        bash deploy.sh
-        ;;
-    stop)
-        pid=\$(pgrep -f ${APP_NAME})
-        if [ ! -z "\$pid" ]; then
-            kill \$pid
-            echo "服务已停止"
-        else
-            echo "服务未运行"
-        fi
-        ;;
-    restart)
-        bash \$0 stop
-        sleep 2
-        bash \$0 start
-        ;;
-    status)
-        pid=\$(pgrep -f ${APP_NAME})
-        if [ ! -z "\$pid" ]; then
-            echo "服务正在运行 (PID: \$pid)"
-            echo "内存使用:"
-            ps -o pid,ppid,%cpu,%mem,cmd -p \$pid
-        else
-            echo "服务未运行"
-        fi
-        ;;
-    update)
-        cd ${WORK_DIR}
-        git pull
-        \${MVN_CMD} clean package -DskipTests
-        bash \$0 restart
-        ;;
-    log)
-        tail -f ${LOG_DIR}/app.log
-        ;;
-    *)
-        echo "用法: \$0 {start|stop|restart|status|update|log}"
-        exit 1
-        ;;
-esac
-EOF
-    chmod +x ${WORK_DIR}/manage.sh
-}
-
 # 主函数
 main() {
     echo -e "${GREEN}开始部署 ${APP_NAME}${NC}"
@@ -386,9 +334,7 @@ main() {
     build_code
     stop_service
     start_service
-    create_manage_script
     echo -e "${GREEN}部署完成！${NC}"
-    echo -e "${GREEN}使用 ./manage.sh {start|stop|restart|status|update|log} 管理服务${NC}"
 }
 
 # 执行主函数
