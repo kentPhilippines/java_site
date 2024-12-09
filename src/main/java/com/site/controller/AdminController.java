@@ -66,14 +66,11 @@ public class AdminController {
         
         List<SiteCertificate> certificates = certificateService.getCertificates(siteId);
         SiteCertificate currentCert = certificates.isEmpty() ? null : certificates.get(0);
-        
         model.addAttribute("site", site);
         model.addAttribute("certificate", currentCert);
         model.addAttribute("certificates", certificates);
         model.addAttribute("adminPath", adminPath);
         model.addAttribute("managePath", managePath);   
-        
-        
         return "admin/certificate";
     }
 } 

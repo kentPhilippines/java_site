@@ -83,6 +83,7 @@
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        const adminPath = `[[${managePath}]]`;
         function requestCertificate() {
             if (!confirm('确定要申请新的SSL证书吗？')) {
                 return;
@@ -90,9 +91,10 @@
             
             $('#requestCertBtn').prop('disabled', true);
             $('#requestStatus').show();
-            
+
+            const url = `/${adminPath}/api/certificates/request/${[[${site.id}]]}`;
             $.ajax({
-                url: '/${admin.path}/api/certificates/request/' + [[${site.id}]],
+                url: url,
                 type: 'POST',
                 success: function(response) {
                     startPollingStatus();
@@ -106,9 +108,10 @@
         }
         
         function startPollingStatus() {
+            const url = `/${adminPath}/api/certificates/status/${[[${site.id}]]}`;
             var pollInterval = setInterval(function() {
                 $.ajax({
-                    url: '/${admin.path}/api/certificates/status/' + [[${site.id}]],
+                    url: url,
                     type: 'GET',
                     success: function(response) {
                         if (response.status === 'ACTIVE') {
@@ -128,8 +131,9 @@
         
         function deleteCertificate(id) {
             if (confirm('确定要删除这个证书吗？')) {
+                const url = `/${adminPath}/api/certificates/${id}`; 
                 $.ajax({
-                    url: '/${admin.path}/api/certificates/' + id,
+                    url: url,
                     type: 'DELETE',
                     success: function() {
                         location.reload();
