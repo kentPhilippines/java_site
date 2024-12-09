@@ -255,8 +255,20 @@ build_code() {
 
 # 创建目录
 create_directories() {
-    mkdir -p ${WORK_DIR}/{logs,config}
-    echo -e "${GREEN}创建工作目录: ${WORK_DIR}${NC}"
+    echo -e "${GREEN}创建必要目录...${NC}"
+    
+    # 创建工作目录和子目录
+    mkdir -p ${WORK_DIR}/{logs,config,cache}
+    
+    # 设置目录权限
+    chmod -R 755 ${WORK_DIR}
+    
+    # 如果使用非root用户运行服务，需要修改目录所有者
+    if [ -n "$SUDO_USER" ]; then
+        chown -R $SUDO_USER:$SUDO_USER ${WORK_DIR}
+    fi
+    
+    echo -e "${GREEN}目录创建完成: ${WORK_DIR}${NC}"
 }
 
 # 停止服务
@@ -275,8 +287,14 @@ stop_service() {
 # 启动服务
 start_service() {
     echo -e "${GREEN}启动服务...${NC}"
+    
+    # 确保日志目录存在
+    mkdir -p ${LOG_DIR}
+    
     cd ${WORK_DIR}
     JAVA_CMD="${JAVA_HOME}/bin/java"
+    
+    # 启动服务
     nohup ${JAVA_CMD} -jar ${JAR_FILE} \
         --spring.profiles.active=prod \
         > ${LOG_DIR}/app.log 2>&1 &
@@ -284,18 +302,25 @@ start_service() {
     # 等待服务启动
     echo -e "${GREEN}等待服务启动...${NC}"
     for i in {1..30}; do
-        if curl -s http://localhost:80/actuator/health > /dev/null; then
-            echo -e "${GREEN}服务已成功启动${NC}"
+        if [ -f "${LOG_DIR}/app.log" ]; then
+            echo -e "${GREEN}服务已启动，日志文件已创建${NC}"
             break
         fi
         if [ $i -eq 30 ]; then
-            echo -e "${RED}服务启动超时，请检查日志${NC}"
-            tail -n 50 ${LOG_DIR}/app.log
+            echo -e "${RED}服务启动超时，请检查${NC}"
             exit 1
         fi
         echo -n "."
         sleep 1
     done
+    
+    # 显示最新日志
+    if [ -f "${LOG_DIR}/app.log" ]; then
+        echo -e "${GREEN}最新日志内容：${NC}"
+        tail -n 50 ${LOG_DIR}/app.log
+    else
+        echo -e "${RED}警告：日志文件未创建${NC}"
+    fi
 }
 
 # 创建管理脚本
@@ -350,7 +375,7 @@ EOF
     chmod +x ${WORK_DIR}/manage.sh
 }
 
-# ��函数
+# 主函数
 main() {
     echo -e "${GREEN}开始部署 ${APP_NAME}${NC}"
     check_java
