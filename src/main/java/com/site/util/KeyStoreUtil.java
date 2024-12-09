@@ -4,7 +4,6 @@ import com.site.config.SSLConfigManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-import org.bouncycastle.openssl.PEMKeyPair;
 import org.bouncycastle.openssl.PEMParser;
 import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter;
 
@@ -15,6 +14,7 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Arrays;
 
 @Slf4j
 @Component
@@ -31,7 +31,14 @@ public class KeyStoreUtil {
             
             // 读取证书链
             List<X509Certificate> chain = readCertificateChain(chainPath);
-            chain.add(0, cert); // 将主证书添加到链的开头
+            
+            // 确保证书链的完整性
+            List<X509Certificate> fullChain = new ArrayList<>();
+            fullChain.add(cert); // 添加主证书
+            fullChain.addAll(chain); // 添加证书链
+            
+            // 验证证书链
+            validateCertificateChain(fullChain);
             
             // 读取私钥
             PrivateKey privateKey = readPrivateKey(keyPath);
@@ -45,7 +52,7 @@ public class KeyStoreUtil {
                 domain,
                 privateKey,
                 KEYSTORE_PASSWORD.toCharArray(),
-                chain.toArray(new Certificate[0])
+                fullChain.toArray(new Certificate[0])
             );
             
             // 保存密钥库到域名特定目录
@@ -54,6 +61,7 @@ public class KeyStoreUtil {
             if (!keystoreFile.getParentFile().exists()) {
                 keystoreFile.getParentFile().mkdirs();
             }
+            
             try (FileOutputStream fos = new FileOutputStream(keystoreFile)) {
                 keyStore.store(fos, KEYSTORE_PASSWORD.toCharArray());
             }
@@ -66,6 +74,24 @@ public class KeyStoreUtil {
         } catch (Exception e) {
             log.error("创建密钥库失败", e);
             throw new RuntimeException("创建密钥库失败: " + e.getMessage());
+        }
+    }
+    
+    private void validateCertificateChain(List<X509Certificate> chain) throws Exception {
+        for (int i = 0; i < chain.size() - 1; i++) {
+            X509Certificate cert = chain.get(i);
+            X509Certificate issuer = chain.get(i + 1);
+            
+            // 验证证书签名
+            cert.verify(issuer.getPublicKey());
+            
+            // 验证证书有效期
+            cert.checkValidity();
+        }
+        
+        // 验证最后一个证书（根证书）
+        if (!chain.isEmpty()) {
+            chain.get(chain.size() - 1).checkValidity();
         }
     }
     
@@ -94,11 +120,10 @@ public class KeyStoreUtil {
             Object object = pemParser.readObject();
             JcaPEMKeyConverter converter = new JcaPEMKeyConverter();
             
-            if (object instanceof PEMKeyPair) {
-                KeyPair keyPair = converter.getKeyPair((PEMKeyPair) object);
-                return keyPair.getPrivate();
+            if (object instanceof org.bouncycastle.openssl.PEMKeyPair) {
+                return converter.getKeyPair((org.bouncycastle.openssl.PEMKeyPair) object).getPrivate();
             } else {
-                throw new Exception("Unsupported private key format");
+                throw new IllegalArgumentException("不支持的私钥格式");
             }
         }
     }
