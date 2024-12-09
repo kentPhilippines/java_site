@@ -46,9 +46,27 @@ public class SSLConfigManager {
                     sslHostConfig.setCertificateKeystorePassword(KEYSTORE_PASSWORD);
                     sslHostConfig.setCertificateKeystoreType("PKCS12");
                     sslHostConfig.setProtocols("+TLSv1.2,+TLSv1.3");
+                    
+                    // 检查现有配置
+                    SSLHostConfig[] existingConfigs = connector.findSslHostConfigs();
+                    log.info("现有SSL主机配置数量: {}", existingConfigs.length);
+                    for (SSLHostConfig config : existingConfigs) {
+                        log.info("已配置的域名: {}, 证书文件: {}", 
+                            config.getHostName(), 
+                            config.getCertificateKeystoreFile());
+                    }
                     // 更新配置
                     connector.addSslHostConfig(sslHostConfig);
                     log.info("成功为域名 {} 添加SSL证书配置", domain);
+                    
+                    // 验证配置是否生效
+                    SSLHostConfig[] sslHostConfigs = connector.findSslHostConfigs();
+                    for (SSLHostConfig config : sslHostConfigs) {
+                        log.info("SSL配置验证成功 - 域名: {}, 证书文件: {}, 协议: {}", 
+                            config.getHostName(),
+                            config.getCertificateKeystoreFile(),
+                            config.getProtocols());
+                    }
                 }
             }
         } catch (Exception e) {

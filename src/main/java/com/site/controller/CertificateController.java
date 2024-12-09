@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import javax.servlet.http.HttpServletRequest;
 
 @Slf4j
 @RestController
@@ -78,7 +79,39 @@ public class CertificateController {
             }
             return ResponseEntity.notFound().build();
         } catch (Exception e) {
-            log.error("获取证书状态失败", e);
+            log.error("取证书状态失败", e);
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/test/{siteId}")
+    public ResponseEntity<?> testCertificate(@PathVariable Long siteId, 
+                                           @RequestHeader(value = "X-Forwarded-Proto", required = false) String forwardedProto,
+                                           @RequestHeader(value = "X-Forwarded-Host", required = false) String forwardedHost,
+                                           HttpServletRequest request) {
+        try {
+            Site site = siteService.selectById(siteId);
+            if (site == null) {
+                return ResponseEntity.badRequest().body(Map.of("error", "站点不存在"));
+            }
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("site", site);
+            result.put("protocol", request.getScheme());
+            result.put("secure", request.isSecure());
+            result.put("serverPort", request.getServerPort());
+            result.put("localPort", request.getLocalPort());
+            result.put("remotePort", request.getRemotePort());
+            result.put("serverName", request.getServerName());
+            result.put("forwardedProto", forwardedProto);
+            result.put("forwardedHost", forwardedHost);
+            result.put("cipherSuite", request.getAttribute("javax.servlet.request.cipher_suite"));
+            result.put("keySize", request.getAttribute("javax.servlet.request.key_size"));
+            result.put("sslSessionId", request.getAttribute("javax.servlet.request.ssl_session_id"));
+            
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            log.error("测试证书失败", e);
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
