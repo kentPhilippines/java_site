@@ -1,7 +1,12 @@
 package com.site.util;
 
+import com.site.config.SSLConfigManager;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.bouncycastle.openssl.PEMKeyPair;
+import org.bouncycastle.openssl.PEMParser;
+import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter;
 
 import java.io.*;
 import java.security.*;
@@ -13,8 +18,10 @@ import java.util.List;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class KeyStoreUtil {
 
+    private final SSLConfigManager sslConfigManager;
     private static final String KEYSTORE_PASSWORD = "changeit";
 
     public void createKeyStore(String domain, String certPath, String keyPath, String chainPath) {
@@ -41,13 +48,20 @@ public class KeyStoreUtil {
                 chain.toArray(new Certificate[0])
             );
             
-            // 保存密钥库
+            // 保存密钥库到域名特定目录
             String keystorePath = "certs/" + domain + "/keystore.p12";
-            try (FileOutputStream fos = new FileOutputStream(keystorePath)) {
+            File keystoreFile = new File(keystorePath);
+            if (!keystoreFile.getParentFile().exists()) {
+                keystoreFile.getParentFile().mkdirs();
+            }
+            try (FileOutputStream fos = new FileOutputStream(keystoreFile)) {
                 keyStore.store(fos, KEYSTORE_PASSWORD.toCharArray());
             }
             
             log.info("成功创建密钥库: {}", keystorePath);
+            
+            // 配置SSL
+            sslConfigManager.addCertificate(domain, keystorePath);
             
         } catch (Exception e) {
             log.error("创建密钥库失败", e);
@@ -74,9 +88,18 @@ public class KeyStoreUtil {
     }
     
     private PrivateKey readPrivateKey(String keyPath) throws Exception {
-        // 这里需要根据私钥文件的格式来实现具体的读取逻辑
-        // 通常需要使用 BouncyCastle 来解析 PEM 格式的私钥
-        // 这里仅作示例
-        throw new UnsupportedOperationException("需要实现私钥读取逻辑");
+        try (FileReader keyReader = new FileReader(keyPath);
+             PEMParser pemParser = new PEMParser(keyReader)) {
+            
+            Object object = pemParser.readObject();
+            JcaPEMKeyConverter converter = new JcaPEMKeyConverter();
+            
+            if (object instanceof PEMKeyPair) {
+                KeyPair keyPair = converter.getKeyPair((PEMKeyPair) object);
+                return keyPair.getPrivate();
+            } else {
+                throw new Exception("Unsupported private key format");
+            }
+        }
     }
 } 
