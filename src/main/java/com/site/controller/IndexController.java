@@ -2,6 +2,7 @@ package com.site.controller;
 
 import com.site.config.ProxyConfig;
 import com.site.entity.Site;
+import com.site.service.AcmeService;
 import com.site.util.HttpUtils;
 import com.site.util.CacheUtil;
 import com.site.service.SiteService;
@@ -25,7 +26,7 @@ public class IndexController {
     private final HttpUtils httpUtils;
     private final CacheUtil cacheUtil;
     private final SiteService siteService;
-
+    private final AcmeService acmeService;
     @Value("${admin.path:#{T(java.util.UUID).randomUUID().toString()}}")
     private String adminPath;
 
@@ -43,29 +44,34 @@ public class IndexController {
     @GetMapping("/**")
     public String proxy(HttpServletRequest request, HttpServletResponse response) {
         try {
+            String path = request.getRequestURI();
+
+            // 处理ACME验证请求
+            if (path.startsWith("/.well-known/acme-challenge/")) {
+                String token = path.substring("/.well-known/acme-challenge/".length());
+                return acmeService.getChallengeResponse(token);
+            }
+
             String host = request.getHeader("Host");
-            Site site = siteService.getSiteByName(host);
+            Site site = siteService.getSiteByUrl(host);
             if (site == null) {
                 return "Error: 站点不存在";
             }
-            String path = request.getRequestURI();
-            String fullUrl;
 
             if (path.startsWith(adminPath)) {
                 return null;
             }
 
-            // 特殊处理favicon.ico
-            if (path.equals("/favicon.ico")) {
-                handleFaviconRequest(site, response);
-                return null;
-            }
-
-            fullUrl = host + path;
+            String fullUrl = host + path;
 
             // 判断是否为静态资源
             if (isStaticResource(path)) {
                 handleStaticResource(host, path, site, response);
+                return null;
+            }
+            // 特殊处理favicon.ico
+            if (path.equals("/favicon.ico")) {
+                handleFaviconRequest(site, response);
                 return null;
             }
 
@@ -97,7 +103,7 @@ public class IndexController {
     private void handleFaviconRequest(Site site, HttpServletResponse response) throws Exception {
         String faviconPath = "/favicon.ico";
         String cacheKey = site.getName() + faviconPath;
-        
+
         // 先尝试从缓存获取
         byte[] cachedFavicon = cacheUtil.getBytes(cacheKey, site);
         if (cachedFavicon != null) {
@@ -122,7 +128,8 @@ public class IndexController {
         }
     }
 
-    private void handleStaticResource(String host, String path, Site site, HttpServletResponse response) throws Exception {
+    private void handleStaticResource(String host, String path, Site site, HttpServletResponse response)
+            throws Exception {
         String cacheKey = host + path;
         String fullUrl = site.getUrl() + path;
 
@@ -184,4 +191,4 @@ public class IndexController {
         return proxyConfig.getStaticExtensions().stream()
                 .anyMatch(ext -> lowercasePath.endsWith(ext));
     }
-} 
+}

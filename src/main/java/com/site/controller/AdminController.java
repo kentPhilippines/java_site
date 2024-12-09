@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 
 import javax.annotation.PostConstruct;
@@ -11,6 +12,10 @@ import java.security.SecureRandom;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.site.service.SiteService;
 import com.site.entity.Site;
+import com.site.entity.SiteCertificate;
+import com.site.service.CertificateService;
+import java.util.List;
+
 @Controller
 @RequestMapping("/${admin.path}")  // 默认使用UUID
 public class AdminController {
@@ -25,6 +30,9 @@ public class AdminController {
     private String adminPath;
     
     private String managePath;
+    
+    @Autowired
+    private CertificateService certificateService;
     
     @PostConstruct
     public void init() {
@@ -47,5 +55,23 @@ public class AdminController {
         model.addAttribute("adminPath", adminPath);
         model.addAttribute("sites", siteService.getAllSites(new Site()));
         return "admin/index";
+    }
+
+    @GetMapping("/certificates/{siteId}")
+    public String certificatesPage(@PathVariable Long siteId, Model model) {
+        Site site = siteService.selectById(siteId);
+        if (site == null) {
+            return "redirect:" + adminPath;
+        }
+        
+        List<SiteCertificate> certificates = certificateService.getCertificates(siteId);
+        SiteCertificate currentCert = certificates.isEmpty() ? null : certificates.get(0);
+        
+        model.addAttribute("site", site);
+        model.addAttribute("certificate", currentCert);
+        model.addAttribute("certificates", certificates);
+        model.addAttribute("adminPath", adminPath);
+        
+        return "admin/certificate";
     }
 } 

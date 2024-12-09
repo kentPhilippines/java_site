@@ -68,7 +68,8 @@
                             <td>
                                 
                                 <button class="btn btn-sm btn-warning" th:onclick="'editSite(' + ${site.id} + ')'">编辑</button>
-                                <button class="btn btn-sm btn-danger" th:onclick="'deleteSite(' + ${site.name} + ')'">删除</button>
+                                <button class="btn btn-sm btn-danger" th:data-site-name="${site.name}" onclick="deleteSite(this)">删除</button>
+                                <a class="btn btn-sm btn-info" th:href="@{${adminPath} + '/certificates/' + ${site.id}}">证书管理</a>
                             </td>
                         </tr>
                     </tbody>
@@ -194,10 +195,11 @@
         }
         
         // 删除站点
-        function deleteSite(name) {
+        function deleteSite(button) {
+            const siteName = button.getAttribute('data-site-name');
             if (confirm('确定要删除这个站点吗？')) {
                 // 使用动态管理路径
-                fetch(`/${adminPath}/sites/${name}`, {
+                fetch(`/${adminPath}/sites/${siteName}`, {
                     method: 'DELETE'
                 }).then(() => {
                     window.location.reload();

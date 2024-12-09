@@ -74,6 +74,24 @@ public class DatabaseInitializer implements CommandLineRunner {
                 "update_time DATETIME" +
                 ")"
             );
+
+
+            // 创建站点证书表
+            jdbcTemplate.execute(
+                "CREATE TABLE IF NOT EXISTS site_certificates (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                "site_id INTEGER NOT NULL," +
+                "domain VARCHAR(255) NOT NULL," +
+                "cert_type VARCHAR(10) NOT NULL," +
+                "cert_file VARCHAR(255)," +
+                "key_file VARCHAR(255)," +
+                "chain_file VARCHAR(255)," +
+                "status VARCHAR(10) NOT NULL," +
+                "auto_renew BOOLEAN DEFAULT FALSE," +
+                "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
+                "expires_at TIMESTAMP" +
+                ")"
+            );
             
             log.info("数据库初始化完成");
         } else {
