@@ -48,7 +48,6 @@ public class SSLConfigManager {
                     sslHostConfig.setProtocols("+TLSv1.2,+TLSv1.3");
                     // 更新配置
                     connector.addSslHostConfig(sslHostConfig);
-
                     log.info("成功为域名 {} 添加SSL证书配置", domain);
                 }
             }

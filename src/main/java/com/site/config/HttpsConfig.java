@@ -1,6 +1,7 @@
 package com.site.config;
 
 import org.apache.catalina.connector.Connector;
+import org.apache.tomcat.util.net.SSLHostConfig;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory;
 import org.springframework.boot.web.servlet.server.ServletWebServerFactory;
@@ -10,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.coyote.http11.Http11NioProtocol;
 import org.apache.catalina.Context;
 import org.springframework.core.io.Resource;
+import java.io.File;
 
 @Slf4j
 @Configuration
@@ -29,16 +31,13 @@ public class HttpsConfig {
         TomcatServletWebServerFactory tomcat = new TomcatServletWebServerFactory() {
             @Override
             protected void postProcessContext(Context context) {
-                // 禁用SSL配置，使用动态配置
-                context.setUseHttpOnly(true);
             }
         };
         
-        // 设置SSL为false，使用动态配置
-        tomcat.setSsl(null);
-        
         // 添加HTTP连接器
         tomcat.addAdditionalTomcatConnectors(createStandardConnector());
+        // 添加HTTPS连接器
+        tomcat.addAdditionalTomcatConnectors(createHttpsConnector());
         
         return tomcat;
     }
@@ -49,16 +48,14 @@ public class HttpsConfig {
         connector.setSecure(false);
         connector.setScheme("http");
         connector.setRedirectPort(httpsPort);
-        
-        // 配置连接器参数
-        connector.setProperty("relaxedPathChars", "[]|");
-        connector.setProperty("relaxedQueryChars", "[]|{}^&#x5c;&#x60;&lt;&gt;");
-        connector.setProperty("maxThreads", "200");
-        connector.setProperty("acceptCount", "100");
-        connector.setProperty("maxConnections", "10000");
-        connector.setProperty("connectionTimeout", "20000");
-        connector.setProperty("maxHttpHeaderSize", "8192");
-        
+        return connector;
+    }
+
+    private Connector createHttpsConnector() {
+        Connector connector = new Connector(Http11NioProtocol.class.getName());
+        connector.setPort(httpsPort);
+        connector.setSecure(true);
+        connector.setScheme("https");
         return connector;
     }
 } 
