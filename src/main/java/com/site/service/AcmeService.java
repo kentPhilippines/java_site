@@ -4,6 +4,7 @@ import com.site.entity.Site;
 import com.site.entity.SiteCertificate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.shredzone.acme4j.*;
 import org.shredzone.acme4j.challenge.Http01Challenge;
@@ -20,19 +21,17 @@ import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.PostConstruct;
 import java.security.cert.X509Certificate;
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
-import com.site.util.KeyStoreUtil;
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AcmeService {
 
     private final CertificateService certificateService;
-    private final KeyStoreUtil keyStoreUtil;
     private static final String CERT_DIR = "certs";
     private static final String ACCOUNT_KEY_FILE = "certs/account.key";
     private static final String ACME_SERVER = "acme://letsencrypt.org";
     private static final DateTimeFormatter SQL_TIMESTAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-    
+
     // 存储HTTP验证的token和响应
     private final ConcurrentHashMap<String, String> challengeMap = new ConcurrentHashMap<>();
 
@@ -308,28 +307,12 @@ public class AcmeService {
             // 保存证书文件
             saveCertificateFiles(domain, cert);
             
-            // 创建密钥库
-            keyStoreUtil.createKeyStore(
-                domain,
-                cert.getCertFile(),
-                cert.getKeyFile(),
-                java.util.Arrays.asList(cert.getChainFile())
-            );
-
-            log.info("第10步: 更新证书状态");
+            // 更新证书状态
             cert.setStatus(SiteCertificate.STATUS_ACTIVE);
-            cert.setCertFile(certPath.resolve("cert.pem").toString());
-            cert.setKeyFile(certPath.resolve("privkey.pem").toString());
-            cert.setChainFile(certPath.resolve("chain.pem").toString());
-            cert.setExpiresAt(LocalDateTime.ofInstant(
-                x509Certificate.getNotAfter().toInstant(),
-                ZoneId.systemDefault()
-            ).format(SQL_TIMESTAMP));
             certificateService.saveCertificate(cert);
-
-            // 清理验证信息
-            challengeMap.clear();
             
+            // 重新加载Nginx配置
+
             log.info("证书申请完成: {}", domain);
             log.info("证书有效期至: {}", cert.getExpiresAt());
         } catch (Exception e) {

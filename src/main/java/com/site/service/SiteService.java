@@ -21,7 +21,6 @@ public class SiteService {
 
     private final SiteMapper siteMapper;
     
-    @Lazy
     @Autowired
     private NginxService nginxService;
     
