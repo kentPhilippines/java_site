@@ -457,12 +457,43 @@ EOF
     echo -e "${GREEN}Nginx配置完成${NC}"
 }
 
+# 检查并安装certbot
+check_and_install_certbot() {
+    echo -e "${YELLOW}检查certbot...${NC}"
+    if ! command -v certbot &> /dev/null; then
+        echo -e "${YELLOW}certbot未安装，开始安装...${NC}"
+        if [ -f /etc/debian_version ]; then
+            # Debian/Ubuntu系统
+            apt-get update
+            apt-get install -y certbot
+        elif [ -f /etc/redhat-release ]; then
+            # CentOS/RHEL系统
+            yum install -y epel-release
+            yum install -y certbot
+        else
+            echo -e "${RED}警告: 不支持的操作系统，请手动安装certbot${NC}"
+            return 1
+        fi
+        
+        # 验证安装
+        if ! command -v certbot &> /dev/null; then
+            echo -e "${RED}警告: certbot安装失败${NC}"
+            return 1
+        fi
+        echo -e "${GREEN}certbot安装成功${NC}"
+    else
+        echo -e "${GREEN}certbot已安装${NC}"
+    fi
+    return 0
+}
+
 # 主函数
 main() {
     echo -e "${GREEN}开始部署 ${APP_NAME}${NC}"
     check_java
     check_maven
     check_and_install_git
+    check_and_install_certbot
     create_directories
     fetch_code
     build_code
