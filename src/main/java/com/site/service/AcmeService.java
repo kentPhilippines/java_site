@@ -327,28 +327,34 @@ public class AcmeService {
             Files.createDirectories(certPath);
             
             // 保存证书文件
-            String certContent = cert.getCertFile();
+            String certContent = cert.getCertFile().trim();
             if (!certContent.startsWith("-----BEGIN CERTIFICATE-----")) {
-                certContent = "-----BEGIN CERTIFICATE-----\n" + certContent + "\n-----END CERTIFICATE-----";
+                certContent = "-----BEGIN CERTIFICATE-----\n" + 
+                    certContent.replaceAll("(.{64})", "$1\n") + 
+                    "\n-----END CERTIFICATE-----";
             }
-            Files.writeString(certPath.resolve("cert.pem"), certContent);
+            Files.writeString(certPath.resolve("cert.pem"), certContent + "\n");
             
             // 保存私钥文件
-            String keyContent = cert.getKeyFile();
+            String keyContent = cert.getKeyFile().trim();
             if (!keyContent.startsWith("-----BEGIN PRIVATE KEY-----")) {
-                keyContent = "-----BEGIN PRIVATE KEY-----\n" + keyContent + "\n-----END PRIVATE KEY-----";
+                keyContent = "-----BEGIN PRIVATE KEY-----\n" + 
+                    keyContent.replaceAll("(.{64})", "$1\n") + 
+                    "\n-----END PRIVATE KEY-----";
             }
-            Files.writeString(certPath.resolve("privkey.pem"), keyContent);
+            Files.writeString(certPath.resolve("privkey.pem"), keyContent + "\n");
             
             // 保存证书链文件
-            String chainContent = cert.getChainFile();
+            String chainContent = cert.getChainFile().trim();
             if (!chainContent.startsWith("-----BEGIN CERTIFICATE-----")) {
-                chainContent = "-----BEGIN CERTIFICATE-----\n" + chainContent + "\n-----END CERTIFICATE-----";
+                chainContent = "-----BEGIN CERTIFICATE-----\n" + 
+                    chainContent.replaceAll("(.{64})", "$1\n") + 
+                    "\n-----END CERTIFICATE-----";
             }
-            Files.writeString(certPath.resolve("chain.pem"), chainContent);
+            Files.writeString(certPath.resolve("chain.pem"), chainContent + "\n");
             
-            // 保存完整证书链文件
-            String fullchainContent = certContent + "\n" + chainContent;
+            // 保存完整证书链文件（确保证书之间有空行）
+            String fullchainContent = certContent + "\n\n" + chainContent + "\n";
             Files.writeString(certPath.resolve("fullchain.pem"), fullchainContent);
             
             // 设置文件权限
