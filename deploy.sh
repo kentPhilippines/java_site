@@ -407,6 +407,15 @@ setup_nginx() {
     chmod -R 755 /opt/java_site/nginx
     chmod -R 700 /opt/java_site/nginx/conf
     
+    # 设置证书目录权限
+    mkdir -p /opt/java_site/certs
+    chown -R www-data:www-data /opt/java_site/certs
+    chmod -R 755 /opt/java_site/certs
+    
+    # 确保nginx用户可以访问
+    usermod -aG www-data nginx || true
+    chmod -R g+rx /opt/java_site/certs
+    
     # 停止已运行的Nginx
     systemctl stop nginx || true
     killall nginx || true

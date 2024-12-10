@@ -10,6 +10,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -23,16 +26,19 @@ public class NginxService {
 
     public void generateSiteConfig(String domain) {
         try {
-            String confPath = nginxBasePath + "/conf/conf.d/" + domain + ".conf";
+            String confPath = nginxBasePath + "/conf.d/" + domain + ".conf";
             String config = generateNginxConfig(domain);
             
             // 确保目录存在
-            new File(nginxBasePath + "/conf/conf.d").mkdirs();
+            new File(nginxBasePath + "/conf.d").mkdirs();
             
             // 写入配置文件
             try (FileWriter writer = new FileWriter(confPath)) {
                 writer.write(config);
             }
+            
+            // 设置证书文件权限
+            setCertificatePermissions(domain);
             
             log.info("已生成站点 {} 的Nginx配置: {}", domain, confPath);
             
@@ -45,9 +51,42 @@ public class NginxService {
         }
     }
 
+    private void setCertificatePermissions(String domain) {
+        try {
+            String certDir = certPath + "/" + domain;
+            String[] certFiles = {"fullchain.pem", "privkey.pem", "chain.pem"};
+            
+            // 设置目录权限
+            File dir = new File(certDir);
+            if (dir.exists()) {
+                dir.setReadable(true, true);    // 仅所有者可读
+                dir.setWritable(true, true);    // 仅所有者可写
+                dir.setExecutable(true, false); // 所有人可执行
+                
+                // 设置文件权限
+                for (String certFile : certFiles) {
+                    File file = new File(certDir + "/" + certFile);
+                    if (file.exists()) {
+                        file.setReadable(true, false);  // 所有人可读
+                        file.setWritable(true, true);   // 仅所有者可写
+                        file.setExecutable(false, false); // 不可执行
+                    }
+                }
+                
+                // 使用Runtime执行chmod命令
+                Runtime.getRuntime().exec("chmod -R 755 " + certDir);
+                Runtime.getRuntime().exec("chmod 644 " + certDir + "/*.pem");
+                
+                log.info("已设置证书文件权限: {}", certDir);
+            }
+        } catch (Exception e) {
+            log.error("设置证书权限失败: {}", e.getMessage(), e);
+        }
+    }
+
     public void deleteSiteConfig(String domain) {
         try {
-            String confPath = nginxBasePath + "/conf/conf.d/" + domain + ".conf";
+            String confPath = nginxBasePath + "/conf.d/" + domain + ".conf";
             Files.deleteIfExists(Paths.get(confPath));
             
             log.info("已删除站点 {} 的Nginx配置", domain);
@@ -63,7 +102,7 @@ public class NginxService {
     private void reloadNginx() {
         try {
             Process process = Runtime.getRuntime().exec(new String[]{
-                "nginx", "-s", "reload", "-c", nginxBasePath + "/conf/nginx.conf"
+                "nginx", "-s", "reload", "-c", nginxBasePath + "/nginx.conf"
             });
             
             int exitCode = process.waitFor();
