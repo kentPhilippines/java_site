@@ -19,6 +19,26 @@ public class AcmeService {
     private final NginxService nginxService;
     private static final String CERT_BASE_PATH = "certs";
     private static final String EMAIL = "admin@example.com"; // 配置你的邮箱
+    private static final String CERTBOT_WEBROOT = "/var/lib/letsencrypt/.well-known/acme-challenge";
+    
+    /**
+     * 获取域名验证响应
+     * @param token 验证token
+     * @return 验证响应内容
+     */
+    public String getChallengeResponse(String token) {
+        try {
+            Path challengePath = Paths.get(CERTBOT_WEBROOT, token);
+            if (Files.exists(challengePath)) {
+                return Files.readString(challengePath);
+            }
+            log.warn("未找到验证文件: {}", challengePath);
+            return null;
+        } catch (IOException e) {
+            log.error("读取验证文件失败: {}", e.getMessage(), e);
+            return null;
+        }
+    }
     
     public void requestCertificate(Site site) {
         String domain = site.getName().replaceAll("https?://", "");
@@ -39,24 +59,22 @@ public class AcmeService {
             cert.setCreatedAt(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
             certificateService.saveCertificate(cert);
             
-            // 停止Nginx
-            log.info("停止Nginx服务");
-            executeCommand("systemctl stop nginx");
+            // 创建验证目录
+            Files.createDirectories(Paths.get(CERTBOT_WEBROOT));
             
             try {
                 // 申请证书
                 String certbotCmd = String.format(
-                    "certbot certonly --standalone " +
+                    "certbot certonly --webroot " +
                     "--non-interactive " +
                     "--agree-tos " +
                     "--email %s " +
                     "--domain %s " +
-                    "--cert-path %s " +
+                    "--webroot-path %s " +
                     "--preferred-challenges http " +
-                    "--http-01-port 80 " +
                     "--force-renewal " +
                     "--debug-challenges",
-                    EMAIL, domain, certPath.toAbsolutePath()
+                    EMAIL, domain, CERTBOT_WEBROOT
                 );
                 
                 log.info("执行certbot命令: {}", certbotCmd);
