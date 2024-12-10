@@ -14,10 +14,10 @@ import java.util.List;
 @RequiredArgsConstructor
 public class NginxService {
 
-    @Value("${nginx.conf-path:nginx/conf}")
+    @Value("${nginx.conf-path:/opt/java_site/nginx}")
     private String nginxConfPath;
 
-    @Value("${nginx.cert-path:certs}")
+    @Value("${nginx.cert-path:/opt/java_site/certs}")
     private String certPath;
 
 
@@ -56,7 +56,7 @@ public class NginxService {
             
             log.info("已删除站点 {} 的Nginx配置", domain);
             
-            // 重新加载Nginx配置
+            // 重新加��Nginx配置
             reloadNginx();
         } catch (Exception e) {
             log.error("删除Nginx配置失败: {}", e.getMessage(), e);
@@ -133,7 +133,7 @@ public class NginxService {
             if (exitCode != 0) {
                 throw new RuntimeException("Nginx重新加载失败，退出码: " + exitCode);
             }
-            log.info("Nginx配置已重新加载");
+            log.info("Nginx��置已重新加载");
         } catch (Exception e) {
             log.error("重新加载Nginx配置失败: {}", e.getMessage(), e);
             throw new RuntimeException("重新加载Nginx配置失败: " + e.getMessage());
