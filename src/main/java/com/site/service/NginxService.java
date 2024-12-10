@@ -57,28 +57,24 @@ public class NginxService {
             String[] certFiles = {"fullchain.pem", "privkey.pem", "chain.pem"};
             
             // 设置目录权限
-            File dir = new File(certDir);
-            if (dir.exists()) {
-                dir.setReadable(true, true);    // 仅所有者可读
-                dir.setWritable(true, true);    // 仅所有者可写
-                dir.setExecutable(true, false); // 所有人可执行
-                
-                // 设置文件权限
-                for (String certFile : certFiles) {
-                    File file = new File(certDir + "/" + certFile);
-                    if (file.exists()) {
-                        file.setReadable(true, false);  // 所有人可读
-                        file.setWritable(true, true);   // 仅所有者可写
-                        file.setExecutable(false, false); // 不可执行
-                    }
+            Process process = Runtime.getRuntime().exec(new String[]{
+                "sh", "-c", "chown -R nginx:nginx " + certDir + " && chmod -R 755 " + certDir
+            });
+            process.waitFor();
+            
+            // 设置文件权限
+            for (String certFile : certFiles) {
+                String filePath = certDir + "/" + certFile;
+                File file = new File(filePath);
+                if (file.exists()) {
+                    process = Runtime.getRuntime().exec(new String[]{
+                        "sh", "-c", "chown nginx:nginx " + filePath + " && chmod 644 " + filePath
+                    });
+                    process.waitFor();
                 }
-                
-                // 使用Runtime执行chmod命令
-                Runtime.getRuntime().exec("chmod -R 755 " + certDir);
-                Runtime.getRuntime().exec("chmod 644 " + certDir + "/*.pem");
-                
-                log.info("已设置证书文件权限: {}", certDir);
             }
+            
+            log.info("已设置证书文件权限: {}", certDir);
         } catch (Exception e) {
             log.error("设置证书权限失败: {}", e.getMessage(), e);
         }
