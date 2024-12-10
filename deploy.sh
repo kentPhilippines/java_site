@@ -350,17 +350,33 @@ start_service() {
     
     # 启动Nginx
     echo -e "${GREEN}启动Nginx...${NC}"
-    systemctl start nginx
+    nginx -c /opt/java_site/nginx/conf/nginx.conf
     
-    # 检查服务状态
-    if systemctl is-active --quiet nginx; then
+    # 检查Nginx状态
+    if pgrep nginx > /dev/null; then
         echo -e "${GREEN}Nginx已成功启动${NC}"
+        # 检查端口监听状态
+        if netstat -tlpn | grep -q ':80.*nginx'; then
+            echo -e "${GREEN}Nginx成功监听80端口${NC}"
+        else
+            echo -e "${RED}警告: Nginx未能监听80端口${NC}"
+            echo -e "${YELLOW}检查Nginx错误日志...${NC}"
+            tail -n 50 /opt/java_site/nginx/logs/error.log
+        fi
     else
         echo -e "${RED}Nginx启动失败${NC}"
+        echo -e "${YELLOW}检查Nginx错误日志...${NC}"
+        tail -n 50 /opt/java_site/nginx/logs/error.log
     fi
+    
+    # 显示Nginx进程状态
+    ps aux | grep nginx
+    
+    # 显示端口监听状态
+    netstat -tlpn | grep nginx
 }
 
-# 添加Nginx安装和配置函数
+# 配置Nginx
 setup_nginx() {
     echo -e "${GREEN}配置Nginx...${NC}"
     
@@ -372,32 +388,62 @@ setup_nginx() {
         yum install -y nginx
     fi
     
-    # 创建必要的目录
-    mkdir -p /var/log/nginx
-    mkdir -p /var/run/nginx
-    mkdir -p /etc/nginx/conf.d
-    mkdir -p /etc/nginx/sites-enabled
-    mkdir -p /etc/nginx/sites-available
+    # 创建Nginx目录结构
+    mkdir -p /opt/java_site/nginx/{conf,logs,temp,conf.d}
     
-    # 复制主配置文件
-    cp nginx/conf/nginx.conf /etc/nginx/nginx.conf
-    
-    # 设置正确的权限
-    chown -R www-data:www-data /var/log/nginx
-    chown -R www-data:www-data /var/run/nginx
-    chmod -R 755 /etc/nginx
-    
-    # 创建证书目录
-    mkdir -p /opt/java_site/certs
-    chown -R www-data:www-data /opt/java_site/certs
-    chmod -R 700 /opt/java_site/certs
+    # 复制配置文件
+    cp -r nginx/conf/* /opt/java_site/nginx/conf/
+    cp nginx/conf/conf.d/default.conf /opt/java_site/nginx/conf/conf.d/
     
     # 如果mime.types不存在，从系统复制一份
-    if [ ! -f /etc/nginx/mime.types ]; then
-        if [ -f /etc/mime.types ]; then
-            cp /etc/mime.types /etc/nginx/mime.types
+    if [ ! -f /opt/java_site/nginx/conf/mime.types ]; then
+        if [ -f /etc/nginx/mime.types ]; then
+            cp /etc/nginx/mime.types /opt/java_site/nginx/conf/mime.types
         fi
     fi
+    
+    # 设置正确的权限
+    chown -R www-data:www-data /opt/java_site/nginx
+    chmod -R 755 /opt/java_site/nginx
+    chmod -R 700 /opt/java_site/nginx/conf
+    
+    # 停止已运行的Nginx
+    systemctl stop nginx || true
+    killall nginx || true
+    
+    # 创建Nginx服务配置
+    cat > /etc/systemd/system/nginx.service << EOF
+[Unit]
+Description=nginx - high performance web server
+Documentation=https://nginx.org/en/docs/
+After=network-online.target remote-fs.target nss-lookup.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+PIDFile=/opt/java_site/nginx/logs/nginx.pid
+ExecStartPre=/usr/sbin/nginx -t -c /opt/java_site/nginx/conf/nginx.conf
+ExecStart=/usr/sbin/nginx -c /opt/java_site/nginx/conf/nginx.conf
+ExecReload=/bin/kill -s HUP \$MAINPID
+ExecStop=/bin/kill -s TERM \$MAINPID
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    # 重新加载systemd
+    systemctl daemon-reload
+    
+    # 删除默认的Nginx配置
+    rm -f /etc/nginx/sites-enabled/default
+    rm -f /etc/nginx/conf.d/default.conf
+    
+    # 创建软链接
+    ln -sf /opt/java_site/nginx/conf/nginx.conf /etc/nginx/nginx.conf
+    
+    # 测试配置
+    nginx -t -c /opt/java_site/nginx/conf/nginx.conf
     
     echo -e "${GREEN}Nginx配置完成${NC}"
 }
