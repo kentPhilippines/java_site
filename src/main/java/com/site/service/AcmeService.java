@@ -9,6 +9,7 @@ import java.io.*;
 import java.nio.file.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import org.springframework.beans.factory.annotation.Value;
 
 @Slf4j
 @Service
@@ -22,6 +23,20 @@ public class AcmeService {
     private static final String REQUEST_CERT_SCRIPT = "scripts/request-cert.sh";
     private static final String CERTBOT_WEBROOT = "/var/lib/letsencrypt/.well-known/acme-challenge";
     
+    @Value("${app.base-dir:#{null}}")
+    private String baseDir;
+    
+    /**
+     * 获取脚本的绝对路径
+     */
+    private String getScriptPath() {
+        if (baseDir != null) {
+            return Paths.get(baseDir, REQUEST_CERT_SCRIPT).toString();
+        }
+        // 如果没有配置baseDir，则使用当前目录
+        return Paths.get(System.getProperty("user.dir"), REQUEST_CERT_SCRIPT).toString();
+    }
+
     /**
      * 设置文件执行权限
      */
@@ -117,25 +132,21 @@ public class AcmeService {
             certificateService.saveCertificate(cert);
             
             try {
-                // 设置脚本执行权限
-                Path scriptPath = Paths.get(REQUEST_CERT_SCRIPT);
-                setExecutablePermission(scriptPath);
+                String scriptPath = getScriptPath();
+                log.info("使用脚本路径: {}", scriptPath);
+                
+                // 检查脚本是否存在
+                if (!Files.exists(Paths.get(scriptPath))) {
+                    throw new RuntimeException("证书申请脚本不存在: " + scriptPath);
+                }
                 
                 // 执行证书申请脚本
                 ProcessBuilder pb = new ProcessBuilder(
                     "sh",
-                    REQUEST_CERT_SCRIPT,
+                    scriptPath,
                     domain
                 );
                 pb.redirectErrorStream(true);
-                
-                // 设置工作目录为脚本所在目录
-                Path scriptDir = Paths.get(REQUEST_CERT_SCRIPT).getParent();
-                if (scriptDir != null) {
-                    pb.directory(scriptDir.toFile());
-                }
-                
-                log.info("执行命令: sh {} {} {}", REQUEST_CERT_SCRIPT, domain, EMAIL);
                 
                 Process process = pb.start();
                 StringBuilder output = new StringBuilder();

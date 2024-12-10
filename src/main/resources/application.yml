@@ -108,3 +108,6 @@ logging:
 
 admin:
   path: HSuu22299dhs
+
+app:
+  base-dir: ${user.dir}
