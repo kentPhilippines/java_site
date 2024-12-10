@@ -487,6 +487,30 @@ check_and_install_certbot() {
     return 0
 }
 
+# 检查并安装certbot
+install_certbot() {
+    if ! command -v certbot &> /dev/null; then
+        echo "正在安装certbot..."
+        if command -v apt-get &> /dev/null; then
+            # Debian/Ubuntu系统
+            sudo apt-get update
+            sudo apt-get install -y certbot
+        elif command -v yum &> /dev/null; then
+            # CentOS/RHEL系统
+            sudo yum install -y epel-release
+            sudo yum install -y certbot
+        elif command -v brew &> /dev/null; then
+            # MacOS系统
+            brew install certbot
+        else
+            echo "无法确定包管理器，请手动安装certbot"
+            exit 1
+        fi
+    else
+        echo "certbot已安装"
+    fi
+}
+
 # 主函数
 main() {
     echo -e "${GREEN}开始部署 ${APP_NAME}${NC}"

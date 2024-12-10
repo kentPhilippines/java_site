@@ -123,11 +123,20 @@ public class AcmeService {
                 
                 // 执行证书申请脚本
                 ProcessBuilder pb = new ProcessBuilder(
-                    "./" + REQUEST_CERT_SCRIPT,
+                    "sh",
+                    REQUEST_CERT_SCRIPT,
                     domain,
                     EMAIL
                 );
                 pb.redirectErrorStream(true);
+                
+                // 设置工作目录为脚本所在目录
+                Path scriptDir = Paths.get(REQUEST_CERT_SCRIPT).getParent();
+                if (scriptDir != null) {
+                    pb.directory(scriptDir.toFile());
+                }
+                
+                log.info("执行命令: sh {} {} {}", REQUEST_CERT_SCRIPT, domain, EMAIL);
                 
                 Process process = pb.start();
                 StringBuilder output = new StringBuilder();
