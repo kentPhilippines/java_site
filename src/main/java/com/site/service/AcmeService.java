@@ -325,12 +325,40 @@ public class AcmeService {
         Path certPath = Paths.get("certs", domain);
         Files.createDirectories(certPath);
         
-        Files.write(certPath.resolve("cert.pem"), cert.getCertFile().getBytes());
-        Files.write(certPath.resolve("privkey.pem"), cert.getKeyFile().getBytes());
-        Files.write(certPath.resolve("chain.pem"), cert.getChainFile().getBytes());
-        Files.write(certPath.resolve("fullchain.pem"), 
-            (cert.getCertFile() + "\n" + cert.getChainFile()).getBytes());
-            
+        // 保存证书文件
+        String certContent = cert.getCertFile();
+        if (!certContent.startsWith("-----BEGIN CERTIFICATE-----")) {
+            certContent = "-----BEGIN CERTIFICATE-----\n" + certContent + "\n-----END CERTIFICATE-----";
+        }
+        Files.writeString(certPath.resolve("cert.pem"), certContent);
+        
+        // 保存私钥文件
+        String keyContent = cert.getKeyFile();
+        if (!keyContent.startsWith("-----BEGIN PRIVATE KEY-----")) {
+            keyContent = "-----BEGIN PRIVATE KEY-----\n" + keyContent + "\n-----END PRIVATE KEY-----";
+        }
+        Files.writeString(certPath.resolve("privkey.pem"), keyContent);
+        
+        // 保存证书链文件
+        String chainContent = cert.getChainFile();
+        if (!chainContent.startsWith("-----BEGIN CERTIFICATE-----")) {
+            chainContent = "-----BEGIN CERTIFICATE-----\n" + chainContent + "\n-----END CERTIFICATE-----";
+        }
+        Files.writeString(certPath.resolve("chain.pem"), chainContent);
+        
+        // 保存完整证书链文件
+        String fullchainContent = certContent + "\n" + chainContent;
+        Files.writeString(certPath.resolve("fullchain.pem"), fullchainContent);
+        
+        // 设置文件权限
+        ProcessBuilder pb = new ProcessBuilder("chmod", "644", 
+            certPath.resolve("cert.pem").toString(),
+            certPath.resolve("privkey.pem").toString(),
+            certPath.resolve("chain.pem").toString(),
+            certPath.resolve("fullchain.pem").toString());
+        pb.start().waitFor();
+        
+        // 更新证书记录中的文件路径
         cert.setCertFile(certPath.resolve("cert.pem").toString());
         cert.setKeyFile(certPath.resolve("privkey.pem").toString());
         cert.setChainFile(certPath.resolve("chain.pem").toString());
