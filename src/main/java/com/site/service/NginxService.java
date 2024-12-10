@@ -23,11 +23,11 @@ public class NginxService {
 
     public void generateSiteConfig(String domain) {
         try {
-            String confPath = nginxBasePath + "/conf.d/" + domain + ".conf";
+            String confPath = nginxBasePath + "/conf/conf.d/" + domain + ".conf";
             String config = generateNginxConfig(domain);
             
             // 确保目录存在
-            new File(nginxBasePath + "/conf.d").mkdirs();
+            new File(nginxBasePath + "/conf/conf.d").mkdirs();
             
             // 写入配置文件
             try (FileWriter writer = new FileWriter(confPath)) {
@@ -47,7 +47,7 @@ public class NginxService {
 
     public void deleteSiteConfig(String domain) {
         try {
-            String confPath = nginxBasePath + "/conf.d/" + domain + ".conf";
+            String confPath = nginxBasePath + "/conf/conf.d/" + domain + ".conf";
             Files.deleteIfExists(Paths.get(confPath));
             
             log.info("已删除站点 {} 的Nginx配置", domain);
@@ -63,7 +63,7 @@ public class NginxService {
     private void reloadNginx() {
         try {
             Process process = Runtime.getRuntime().exec(new String[]{
-                "nginx", "-s", "reload", "-c", nginxBasePath + "/nginx.conf"
+                "nginx", "-s", "reload", "-c", nginxBasePath + "/conf/nginx.conf"
             });
             
             int exitCode = process.waitFor();

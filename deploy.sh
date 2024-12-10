@@ -389,7 +389,7 @@ setup_nginx() {
     fi
     
     # 创建Nginx目录结构
-    mkdir -p /opt/java_site/nginx/{conf,logs,temp,conf.d}
+    mkdir -p /opt/java_site/nginx/{conf,logs,temp}
     
     # 复制配置文件
     cp -r nginx/conf/* /opt/java_site/nginx/conf/
