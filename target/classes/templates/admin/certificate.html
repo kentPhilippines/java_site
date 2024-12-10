@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>证书管理</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+<body>
+    <div class="container mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>证书管理 - <span th:text="${site.name}"></span></h2>
+            <a th:href="@{'/'+${managePath}}" class="btn btn-secondary">返回主页</a>
+        </div>
+        
+        <!-- 证书状态 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                当前证书状态
+            </div>
+            <div class="card-body">
+                <div th:if="${certificate != null}">
+                    <p>状态: <span th:text="${certificate.status}" th:class="${certificate.status == 'ACTIVE' ? 'text-success' : 'text-danger'}"></span></p>
+                    <p>过期时间: <span th:text="${certificate.expiresAt}"></span></p>
+                    <p>域名: <span th:text="${certificate.domain}"></span></p>
+                    <p>自动续期: <span th:text="${certificate.autoRenew ? '是' : '否'}"></span></p>
+                </div>
+                <div th:unless="${certificate != null}">
+                    <p class="text-muted">暂无证书</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 申请证书 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                申请SSL证书
+            </div>
+            <div class="card-body">
+                <p class="text-muted">点击下方按钮自动申请Let's Encrypt免费SSL证书</p>
+                <button id="requestCertBtn" class="btn btn-primary" onclick="requestCertificate()">申请证书</button>
+                <div id="requestStatus" class="mt-3" style="display: none;">
+                    <div class="alert alert-info">
+                        证书申请中，请稍候...
+                        <div class="progress mt-2">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 证书历史记录 -->
+        <div class="card">
+            <div class="card-header">
+                证书历史记录
+            </div>
+            <div class="card-body">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>域名</th>
+                            <th>状态</th>
+                            <th>过期时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="cert : ${certificates}">
+                            <td th:text="${cert.domain}"></td>
+                            <td>
+                                <span th:text="${cert.status}" 
+                                      th:class="${cert.status == 'ACTIVE' ? 'badge badge-success' : 'badge badge-danger'}">
+                                </span>
+                            </td>
+                            <td th:text="${cert.expiresAt}"></td>
+                            <td>
+                                <button class="btn btn-sm btn-danger" th:onclick="'deleteCertificate(' + ${cert.id} + ')'">删除</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script th:inline="javascript">
+        const adminPath = [[${managePath}]];
+        
+        function requestCertificate() {
+            if (!confirm('确定要申请新的SSL证书吗？')) {
+                return;
+            }
+            
+            $('#requestCertBtn').prop('disabled', true);
+            $('#requestStatus').show();
+
+            const url = `/${adminPath}/api/certificates/request/${[[${site.id}]]}`;
+            $.ajax({
+                url: url,
+                type: 'POST',
+                success: function(response) {
+                    startPollingStatus();
+                },
+                error: function(xhr) {
+                    alert('证书申请失败: ' + xhr.responseJSON.error);
+                    $('#requestCertBtn').prop('disabled', false);
+                    $('#requestStatus').hide();
+                }
+            });
+        }
+        
+        function startPollingStatus() {
+            const url = `/${adminPath}/api/certificates/status/${[[${site.id}]]}`;
+            var pollInterval = setInterval(function() {
+                $.ajax({
+                    url: url,
+                    type: 'GET',
+                    success: function(response) {
+                        if (response.status === 'ACTIVE') {
+                            clearInterval(pollInterval);
+                            location.reload();
+                        }
+                    }
+                });
+            }, 5000);
+            
+            // 5分钟后停止轮询
+            setTimeout(function() {
+                clearInterval(pollInterval);
+                location.reload();
+            }, 300000);
+        }
+        
+        function deleteCertificate(id) {
+            if (confirm('确定要删除这个证书吗？')) {
+                const url = `/${adminPath}/api/certificates/${id}`; 
+                $.ajax({
+                    url: url,
+                    type: 'DELETE',
+                    success: function() {
+                        location.reload();
+                    },
+                    error: function(xhr) {
+                        alert('证书删除失败: ' + xhr.responseJSON.error);
+                    }
+                });
+            }
+        }
+    </script>
+</body>
+</html> 

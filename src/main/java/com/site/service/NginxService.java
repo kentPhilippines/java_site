@@ -6,13 +6,8 @@ import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.FileWriter;
-import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.attribute.PosixFilePermission;
-import java.nio.file.attribute.PosixFilePermissions;
-import java.util.Set;
 
 @Slf4j
 @Service
@@ -82,7 +77,7 @@ public class NginxService {
 
     public void deleteSiteConfig(String domain) {
         try {
-            String confPath = nginxBasePath + "/conf.d/" + domain + ".conf";
+            String confPath = nginxBasePath + "/conf/conf.d/" + domain + ".conf";
             Files.deleteIfExists(Paths.get(confPath));
             
             log.info("已删除站点 {} 的Nginx配置", domain);
