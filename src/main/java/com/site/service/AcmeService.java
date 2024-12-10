@@ -125,8 +125,7 @@ public class AcmeService {
                 ProcessBuilder pb = new ProcessBuilder(
                     "sh",
                     REQUEST_CERT_SCRIPT,
-                    domain,
-                    EMAIL
+                    domain
                 );
                 pb.redirectErrorStream(true);
                 
