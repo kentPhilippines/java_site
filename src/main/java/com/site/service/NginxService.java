@@ -1,112 +1,3 @@
-package com.site.service;
-
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-
-import java.io.File;
-import java.io.FileWriter;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-
-@Slf4j
-@Service
-public class NginxService {
-
-    @Value("${nginx.base-path:/opt/java_site/nginx}")
-    private String nginxBasePath;
-
-    @Value("${nginx.cert-path:/opt/java_site/certs}")
-    private String certPath;
-
-    public void generateSiteConfig(String domain) {
-        try {
-            String confPath = nginxBasePath + "/conf/conf.d/" + domain + ".conf";
-            String config = generateNginxConfig(domain);
-            
-            // 确保目录存在
-            new File(nginxBasePath + "/conf/conf.d").mkdirs();
-            
-            // 写入配置文件
-            try (FileWriter writer = new FileWriter(confPath)) {
-                writer.write(config);
-            }
-            
-            // 设置证书文件权限
-            setCertificatePermissions(domain);
-            
-            log.info("已生成站点 {} 的Nginx配置: {}", domain, confPath);
-            
-            // 重新加载Nginx配置
-            reloadNginx();
-            
-        } catch (Exception e) {
-            log.error("生成Nginx配置失败: {}", e.getMessage(), e);
-            throw new RuntimeException("生成Nginx配置失败: " + e.getMessage());
-        }
-    }
-
-    private void setCertificatePermissions(String domain) {
-        try {
-            String certDir = certPath + "/" + domain;
-            String[] certFiles = {"cert.pem", "key.pem", "chain.pem"};
-            
-            // 设置目录权限
-            Process process = Runtime.getRuntime().exec(new String[]{
-                "sh", "-c", "chown -R nginx:nginx " + certDir + " && chmod -R 755 " + certDir
-            });
-            process.waitFor();
-            
-            // 设置文件权限
-            for (String certFile : certFiles) {
-                String filePath = certDir + "/" + certFile;
-                File file = new File(filePath);
-                if (file.exists()) {
-                    process = Runtime.getRuntime().exec(new String[]{
-                        "sh", "-c", "chown nginx:nginx " + filePath + " && chmod 644 " + filePath
-                    });
-                    process.waitFor();
-                }
-            }
-            
-            log.info("已设置证书文件权限: {}", certDir);
-        } catch (Exception e) {
-            log.error("设置证书权限失败: {}", e.getMessage(), e);
-        }
-    }
-
-    public void deleteSiteConfig(String domain) {
-        try {
-            String confPath = nginxBasePath + "/conf/conf.d/" + domain + ".conf";
-            Files.deleteIfExists(Paths.get(confPath));
-            
-            log.info("已删除站点 {} 的Nginx配置", domain);
-            
-            // 重新加载Nginx配置
-            reloadNginx();
-        } catch (Exception e) {
-            log.error("删除Nginx配置失败: {}", e.getMessage(), e);
-            throw new RuntimeException("删除Nginx配置失败: " + e.getMessage());
-        }
-    }
-
-    private void reloadNginx() {
-        try {
-            Process process = Runtime.getRuntime().exec(new String[]{
-                "nginx", "-s", "reload", "-c", nginxBasePath + "/conf/nginx.conf"
-            });
-            
-            int exitCode = process.waitFor();
-            if (exitCode != 0) {
-                throw new RuntimeException("Nginx重新加载失败，退出码: " + exitCode);
-            }
-            log.info("Nginx配置已重新加载");
-        } catch (Exception e) {
-            log.error("重新加载Nginx配置失败: {}", e.getMessage(), e);
-            throw new RuntimeException("重新加载Nginx配置失败: " + e.getMessage());
-        }
-    }
-
     private String generateNginxConfig(String domain) {
         StringBuilder config = new StringBuilder();
         config.append("server {\n")
@@ -118,9 +9,16 @@ public class NginxService {
              .append("    listen 443 ssl http2;\n")
              .append(String.format("    server_name %s;\n\n", domain))
              .append("    # SSL证书配置\n")
-             .append(String.format("    ssl_certificate %s/%s/cert.pem;\n", certPath, domain))
-             .append(String.format("    ssl_certificate_key %s/%s/key.pem;\n", certPath, domain))
-             .append(String.format("    ssl_trusted_certificate %s/%s/chain.pem;\n\n", certPath, domain))
+             .append(String.format("    ssl_certificate %s/%s/fullchain.pem;\n", certPath, domain))
+             .append(String.format("    ssl_certificate_key %s/%s/privkey.pem;\n", certPath, domain))
+             .append("\n")
+             .append("    # SSL配置优化\n")
+             .append("    ssl_session_timeout 1d;\n")
+             .append("    ssl_session_cache shared:SSL:50m;\n")
+             .append("    ssl_session_tickets off;\n")
+             .append("    ssl_protocols TLSv1.2 TLSv1.3;\n")
+             .append("    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;\n")
+             .append("    ssl_prefer_server_ciphers off;\n\n")
              .append("    # OCSP Stapling\n")
              .append("    ssl_stapling on;\n")
              .append("    ssl_stapling_verify on;\n")
@@ -158,4 +56,3 @@ public class NginxService {
         
         return config.toString();
     }
-} 
