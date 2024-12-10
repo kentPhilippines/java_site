@@ -23,7 +23,7 @@ public interface SiteMapper {
     @SelectProvider(type = SiteMapperSqlProvider.class, method = "selectList")
     List<Site> selectList(Site site);
 
-    @Select("SELECT * FROM site WHERE id = #{id}")
+    @Select("SELECT is_ssl as ssl, id, name, url, enabled, description, is_cache as isCache, sitemap, sync_source as syncSource, create_time as createTime, update_time as updateTime FROM site WHERE id = #{id}")
     Site selectById(Long id);
 
     /**
@@ -42,13 +42,13 @@ public interface SiteMapper {
     @Delete("DELETE FROM site WHERE id = #{id}")
     void deleteById(Long id);
 
-    @Select("SELECT * FROM site WHERE enabled = 1")
+    @Select("SELECT is_ssl as ssl, id, name, url, enabled, description, is_cache as isCache, sitemap, sync_source as syncSource, create_time as createTime, update_time as updateTime FROM site WHERE enabled = 1")
     List<Site> selectEnabledSites();
 
-    @Select("SELECT * FROM site WHERE name = #{name}")
+    @Select("SELECT is_ssl as ssl, id, name, url, enabled, description, is_cache as isCache, sitemap, sync_source as syncSource, create_time as createTime, update_time as updateTime FROM site WHERE name = #{name}")
     Site findByName(String name);
 
-    @Select("SELECT * FROM site WHERE url = #{url}")
+    @Select("SELECT is_ssl as ssl, id, name, url, enabled, description, is_cache as isCache, sitemap, sync_source as syncSource, create_time as createTime, update_time as updateTime FROM site WHERE url = #{url}")
     Site findByUrl(String url);
 
     @Delete("DELETE FROM site WHERE name = #{name}")

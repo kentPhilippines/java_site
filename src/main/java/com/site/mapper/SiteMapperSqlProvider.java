@@ -30,7 +30,9 @@ public class SiteMapperSqlProvider {
             if (site.getSitemap() != null) {
                 VALUES("sitemap", "#{sitemap}");
             }
-            
+            if (site.getSsl() != null) {
+                VALUES("is_ssl", "#{ssl}");
+            }
             VALUES("create_time", "datetime('now')");
             VALUES("update_time", "datetime('now')");
         }}.toString();
@@ -60,6 +62,9 @@ public class SiteMapperSqlProvider {
             if (site.getSyncSource() != null) {
                 SET("sync_source = #{syncSource}");
             }
+            if (site.getSsl() != null) {
+                SET("ssl = #{ssl}");
+            }
             SET("update_time = datetime('now')");
             WHERE("id = #{id}");
         }}.toString();
@@ -70,7 +75,7 @@ public class SiteMapperSqlProvider {
 
     public String selectList(Site site){
         return new SQL() {{
-            SELECT("id, name, url, enabled, description, is_cache as isCache, sitemap, sync_source as syncSource, create_time as createTime, update_time as updateTime");
+            SELECT("id, name, url, enabled, description, is_cache as isCache, sitemap, sync_source as syncSource, is_ssl as  ssl, create_time as createTime, update_time as updateTime");
             FROM("site");
             if (site.getName() != null) {
                 WHERE("name = #{name}");
@@ -92,6 +97,9 @@ public class SiteMapperSqlProvider {
             }
             if (site.getSyncSource() != null) {
                 WHERE("sync_source = #{syncSource}");
+            }
+            if (site.getSsl() != null) {
+                WHERE("ssl = #{ssl}");
             }
             ORDER_BY("create_time DESC");
         }}.toString();

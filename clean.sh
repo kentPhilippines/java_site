@@ -20,6 +20,7 @@ echo -e "${GREEN}停止相关服务...${NC}"
 pkill -f java_site
 pkill -f java
 systemctl stop maven || true
+systemctl stop nginx || true
 
 # 卸载Java
 echo -e "${GREEN}卸载Java...${NC}"
@@ -42,6 +43,15 @@ elif [ -f /etc/redhat-release ]; then
     yum remove -y maven
 fi
 
+# 卸载Nginx
+echo -e "${GREEN}卸载Nginx...${NC}"
+if [ -f /etc/debian_version ]; then
+    apt-get remove -y nginx
+    apt-get purge -y nginx
+elif [ -f /etc/redhat-release ]; then
+    yum remove -y nginx
+fi
+
 # 删除Java相关目录
 echo -e "${GREEN}删除Java相关目录...${NC}"
 rm -rf /usr/lib/jvm/*
@@ -57,11 +67,20 @@ rm -rf /opt/maven
 rm -rf /usr/share/maven
 rm -f /etc/profile.d/maven.sh
 
+# 删除Nginx相关目录
+echo -e "${GREEN}删除Nginx相关目录...${NC}"
+rm -rf /etc/nginx
+rm -rf /var/log/nginx
+rm -rf /var/cache/nginx
+rm -rf /usr/share/nginx
+rm -f /etc/systemd/system/nginx.service
+
 # 删除项目相关目录
 echo -e "${GREEN}删除项目相关目录...${NC}"
 rm -rf /opt/java_site
 rm -rf ~/java_site
 rm -rf /var/lib/java_site
+rm -f /etc/systemd/system/java-site.service
 
 # 清理包管理器缓存
 echo -e "${GREEN}清理包管理器缓存...${NC}"
@@ -79,6 +98,9 @@ sed -i '/JAVA_HOME/d' /etc/profile
 sed -i '/MAVEN_HOME/d' /etc/profile
 source /etc/profile
 
+# 重新加载systemd
+systemctl daemon-reload
+
 # 验证清理结果
 echo -e "${GREEN}验证清理结果...${NC}"
 java -version > /dev/null 2>&1
@@ -93,6 +115,13 @@ if [ $? -eq 0 ]; then
     echo -e "${RED}警告: Maven仍然存在${NC}"
 else
     echo -e "${GREEN}Maven已完全删除${NC}"
+fi
+
+nginx -v > /dev/null 2>&1
+if [ $? -eq 0 ]; then
+    echo -e "${RED}警告: Nginx仍然存在${NC}"
+else
+    echo -e "${GREEN}Nginx已完全删除${NC}"
 fi
 
 echo -e "${GREEN}环境清理完成！${NC}"

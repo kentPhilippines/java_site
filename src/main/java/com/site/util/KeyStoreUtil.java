@@ -1,6 +1,5 @@
 package com.site.util;
 
-import com.site.config.SSLConfigManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -14,13 +13,14 @@ import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.List;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import com.site.service.NginxService;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class KeyStoreUtil {
 
-    private final SSLConfigManager sslConfigManager;
+    private final NginxService nginxService;
     private static final String KEYSTORE_PASSWORD = "changeit";
 
     static {
@@ -66,8 +66,8 @@ public class KeyStoreUtil {
             
             log.info("成功创建密钥库: {}", keystorePath);
             
-            // 配置SSL
-            sslConfigManager.addCertificate(domain, keystorePath);
+            // 生成Nginx配置
+            nginxService.generateSiteConfig(domain);
             
         } catch (Exception e) {
             log.error("创建密钥库失败", e);

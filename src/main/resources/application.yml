@@ -1,3 +1,18 @@
+server:
+  port: 9090
+  tomcat:
+    max-threads: 200
+    min-spare-threads: 10
+    max-connections: 10000
+    connection-timeout: 20000
+    accept-count: 100
+    max-http-form-post-size: 4MB
+    max-swallow-size: 4MB
+    uri-encoding: UTF-8
+    remote-ip-header: X-Forwarded-For
+    protocol-header: X-Forwarded-Proto
+    protocol-header-https-value: https
+
 spring:
   application:
     name: java-site
@@ -30,11 +45,6 @@ mybatis:
     cache-enabled: true
     call-setters-on-nulls: true
     jdbc-type-for-null: NULL
-
-ssl:
-  cert-path: certs
-  auto-renew: true
-  check-interval: 3600000
 
 proxy:
   allowed-domains:

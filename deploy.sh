@@ -15,6 +15,12 @@ MAVEN_DOWNLOAD_URL="https://dlcdn.apache.org/maven/maven-3/${MAVEN_VERSION}/bina
 MAVEN_TAR="apache-maven-${MAVEN_VERSION}-bin.tar.gz"
 MVN_CMD="${MAVEN_HOME}/bin/mvn"
 
+# 添加Nginx相关变量
+NGINX_CONF_DIR="${WORK_DIR}/nginx/conf"
+NGINX_LOGS_DIR="${WORK_DIR}/nginx/logs"
+NGINX_TEMP_DIR="${WORK_DIR}/nginx/temp"
+NGINX_CERTS_DIR="${WORK_DIR}/certs"
+
 # 颜色输出
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -287,6 +293,12 @@ create_directories() {
     # 创建工作目录和子目录
     mkdir -p ${WORK_DIR}/{logs,config,cache}
     
+    # 创建Nginx相关目录
+    mkdir -p ${NGINX_CONF_DIR}/conf.d
+    mkdir -p ${NGINX_LOGS_DIR}
+    mkdir -p ${NGINX_TEMP_DIR}
+    mkdir -p ${NGINX_CERTS_DIR}
+    
     # 设置目录权限
     chmod -R 755 ${WORK_DIR}
     
@@ -315,39 +327,70 @@ stop_service() {
 start_service() {
     echo -e "${GREEN}启动服务...${NC}"
     
-    # 确保日志目录存在
-    mkdir -p ${LOG_DIR}
-    
-    cd ${WORK_DIR}
-    JAVA_CMD="${JAVA_HOME}/bin/java"
-    
-    # 启动服务
+    # 启动Java应用
     nohup ${JAVA_CMD} -jar ${JAR_FILE} \
         --spring.profiles.active=prod \
         > ${LOG_DIR}/app.log 2>&1 &
-
-    # 等待服务启动
-    echo -e "${GREEN}等待服务启动...${NC}"
-    for i in {1..30}; do
-        if [ -f "${LOG_DIR}/app.log" ]; then
-            echo -e "${GREEN}服务已启动，日志文件已创建${NC}"
-            break
-        fi
-        if [ $i -eq 30 ]; then
-            echo -e "${RED}服务启动超时，请检查${NC}"
-            exit 1
-        fi
-        echo -n "."
-        sleep 1
-    done
     
-    # 显示最新日志
-    if [ -f "${LOG_DIR}/app.log" ]; then
-        echo -e "${GREEN}最新日志内容：${NC}"
-        tail -n 50 ${LOG_DIR}/app.log
+    # 等待Java应用启动
+    echo -e "${GREEN}等待Java应用启动...${NC}"
+    sleep 10
+    
+    # 启动Nginx
+    echo -e "${GREEN}启动Nginx...${NC}"
+    systemctl start nginx
+    
+    # 检查服务状态
+    if systemctl is-active --quiet nginx; then
+        echo -e "${GREEN}Nginx已成功启动${NC}"
     else
-        echo -e "${RED}警告：日志文件未创建${NC}"
+        echo -e "${RED}Nginx启动失败${NC}"
     fi
+}
+
+# 添加Nginx安装和配置函数
+setup_nginx() {
+    echo -e "${GREEN}配置Nginx...${NC}"
+    
+    # 安装Nginx
+    if [ -f /etc/debian_version ]; then
+        apt-get update
+        apt-get install -y nginx
+    elif [ -f /etc/redhat-release ]; then
+        yum install -y nginx
+    fi
+    
+    # 复制Nginx配置文件
+    cp -r nginx/conf/* ${NGINX_CONF_DIR}/
+    
+    # 创建Nginx服务配置
+    cat > /etc/systemd/system/nginx.service << EOF
+[Unit]
+Description=nginx - high performance web server
+Documentation=https://nginx.org/en/docs/
+After=network-online.target remote-fs.target nss-lookup.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+PIDFile=${WORK_DIR}/nginx/logs/nginx.pid
+ExecStartPre=/usr/sbin/nginx -t -c ${NGINX_CONF_DIR}/nginx.conf
+ExecStart=/usr/sbin/nginx -c ${NGINX_CONF_DIR}/nginx.conf
+ExecReload=/bin/kill -s HUP \$MAINPID
+ExecStop=/bin/kill -s TERM \$MAINPID
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    # 重新加载systemd
+    systemctl daemon-reload
+    
+    # 启用Nginx服务
+    systemctl enable nginx
+    
+    echo -e "${GREEN}Nginx配置完成${NC}"
 }
 
 # 主函数
@@ -359,6 +402,7 @@ main() {
     create_directories
     fetch_code
     build_code
+    setup_nginx
     stop_service
     start_service
     echo -e "${GREEN}部署完成！${NC}"

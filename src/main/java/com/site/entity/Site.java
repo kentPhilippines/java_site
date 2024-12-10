@@ -20,6 +20,9 @@ public class Site {
      * 描述
      */
     private String description;
+
+
+    private Integer  ssl;
     /**
      * 创建时间
      */

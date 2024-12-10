@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS site (
     update_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     enabled INTEGER DEFAULT 1,
     is_cache INTEGER DEFAULT 1,
+    is_ssl INTEGER DEFAULT 1,
     sitemap INTEGER DEFAULT 1,
     sync_source VARCHAR(255)
 );
