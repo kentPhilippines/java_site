@@ -49,7 +49,7 @@ public class NginxService {
     private void setCertificatePermissions(String domain) {
         try {
             String certDir = certPath + "/" + domain;
-            String[] certFiles = {"fullchain.pem", "privkey.pem", "chain.pem"};
+            String[] certFiles = {"cert.pem", "key.pem", "chain.pem"};
             
             // 设置目录权限
             Process process = Runtime.getRuntime().exec(new String[]{
@@ -118,8 +118,8 @@ public class NginxService {
              .append("    listen 443 ssl http2;\n")
              .append(String.format("    server_name %s;\n\n", domain))
              .append("    # SSL证书配置\n")
-             .append(String.format("    ssl_certificate %s/%s/fullchain.pem;\n", certPath, domain))
-             .append(String.format("    ssl_certificate_key %s/%s/privkey.pem;\n", certPath, domain))
+             .append(String.format("    ssl_certificate %s/%s/cert.pem;\n", certPath, domain))
+             .append(String.format("    ssl_certificate_key %s/%s/key.pem;\n", certPath, domain))
              .append(String.format("    ssl_trusted_certificate %s/%s/chain.pem;\n\n", certPath, domain))
              .append("    # OCSP Stapling\n")
              .append("    ssl_stapling on;\n")
