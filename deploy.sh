@@ -511,8 +511,35 @@ install_certbot() {
     fi
 }
 
+# 检查并设置ACME目录权限
+setup_acme_permissions() {
+    ACME_DIR="/var/lib/letsencrypt"
+    NGINX_USER="nginx"  # CentOS/RHEL默认用户
+    
+    # 检测nginx用户
+    if getent passwd www-data > /dev/null 2>&1; then
+        NGINX_USER="www-data"  # Ubuntu/Debian默认用户
+    fi
+    
+    # 创建目录（如果不存在）
+    if [ ! -d "$ACME_DIR" ]; then
+        echo "创建ACME目录: $ACME_DIR"
+        sudo mkdir -p "$ACME_DIR"
+    fi
+    
+    # 设置权限
+    echo "设置ACME目录权限..."
+    sudo chown -R "$NGINX_USER:$NGINX_USER" "$ACME_DIR"
+    sudo chmod -R 755 "$ACME_DIR"
+    
+    echo "ACME目录权限设置完成"
+}
+
 # 主函数
 main() {
+    # 设置ACME目录权限
+    setup_acme_permissions
+    
     echo -e "${GREEN}开始部署 ${APP_NAME}${NC}"
     check_java
     check_maven

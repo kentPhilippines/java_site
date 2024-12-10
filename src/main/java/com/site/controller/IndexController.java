@@ -46,18 +46,6 @@ public class IndexController {
         try {
             String path = request.getRequestURI();
             log.info("请求路径: {}", path);
-            // 处理ACME验证请求
-
-            if (path.contains(" /.well-known/acme-challenge/")) {
-                String token = path.substring("/.well-known/acme-challenge/".length());
-                String challengeResponse = acmeService.getChallengeResponse(token);
-                if (challengeResponse != null) {
-                    response.setContentType("text/plain");
-                    response.getWriter().write(challengeResponse);
-                    return null;
-                }
-            }
-
             String host = request.getHeader("Host");
             log.info("请求主机: {}, 路径: {}", host, path);
             Site site = siteService.getSiteByUrl(host);

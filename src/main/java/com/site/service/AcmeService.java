@@ -10,21 +10,21 @@ import java.nio.file.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AcmeService {
     
-    private final CertificateService certificateService;
-    private final NginxService nginxService;
     private static final String CERT_BASE_PATH = "certs";
-    private static final String EMAIL = "admin@example.com";
     private static final String REQUEST_CERT_SCRIPT = "scripts/request-cert.sh";
-    private static final String CERTBOT_WEBROOT = "/var/lib/letsencrypt/.well-known/acme-challenge";
     
     @Value("${app.base-dir:#{null}}")
     private String baseDir;
+    
+    @Autowired
+    private CertificateService certificateService;
     
     /**
      * 获取脚本的绝对路径
@@ -97,24 +97,6 @@ public class AcmeService {
         return output.toString();
     }
 
-    /**
-     * 获取域名验证响应
-     * @param token 验证token
-     * @return 验证响应内容
-     */
-    public String getChallengeResponse(String token) {
-        try {
-            Path challengePath = Paths.get(CERTBOT_WEBROOT, token);
-            if (Files.exists(challengePath)) {
-                return Files.readString(challengePath);
-            }
-            return null;
-        } catch (IOException e) {
-            log.error("读取challenge文件失败: {}", e.getMessage(), e);
-            return null;
-        }
-    }
-    
     public void requestCertificate(Site site) {
         String domain = site.getUrl().replaceAll("https?://", "");
         
