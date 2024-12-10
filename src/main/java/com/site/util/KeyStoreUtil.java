@@ -7,6 +7,7 @@ import java.io.*;
 import java.security.*;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
+import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.List;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
