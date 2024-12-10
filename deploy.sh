@@ -60,11 +60,11 @@ clean_environment() {
     # 清理系统级Java和Maven（根据系统类型）
     if [ -f /etc/debian_version ]; then
         # Debian/Ubuntu系统
-        apt-get remove -y openjdk* maven
+        apt-get remove -y openjdk* maven nginx
         apt-get autoremove -y
     elif [ -f /etc/redhat-release ]; then
         # CentOS/RHEL系统
-        yum remove -y java-* maven
+        yum remove -y java-* maven nginx
         yum autoremove -y
     fi
     
@@ -321,6 +321,12 @@ stop_service() {
             kill -9 ${pid}
         fi
     fi
+    
+    # 停止Nginx服务
+    if command -v nginx &> /dev/null; then
+        echo -e "${GREEN}停止Nginx服务...${NC}"
+        systemctl stop nginx || true
+    fi
 }
 
 # 启动服务
@@ -328,7 +334,7 @@ start_service() {
     echo -e "${GREEN}启动服务...${NC}"
     
     # 启动Java应用
-    nohup ${JAVA_CMD} -jar ${JAR_FILE} \
+    nohup java -jar ${JAR_FILE} \
         --spring.profiles.active=prod \
         > ${LOG_DIR}/app.log 2>&1 &
     
@@ -360,35 +366,32 @@ setup_nginx() {
         yum install -y nginx
     fi
     
-    # 复制Nginx配置文件
-    cp -r nginx/conf/* ${NGINX_CONF_DIR}/
+    # 创建必要的目录
+    mkdir -p /var/log/nginx
+    mkdir -p /var/run/nginx
+    mkdir -p /etc/nginx/conf.d
+    mkdir -p /etc/nginx/sites-enabled
+    mkdir -p /etc/nginx/sites-available
     
-    # 创建Nginx服务配置
-    cat > /etc/systemd/system/nginx.service << EOF
-[Unit]
-Description=nginx - high performance web server
-Documentation=https://nginx.org/en/docs/
-After=network-online.target remote-fs.target nss-lookup.target
-Wants=network-online.target
-
-[Service]
-Type=forking
-PIDFile=${WORK_DIR}/nginx/logs/nginx.pid
-ExecStartPre=/usr/sbin/nginx -t -c ${NGINX_CONF_DIR}/nginx.conf
-ExecStart=/usr/sbin/nginx -c ${NGINX_CONF_DIR}/nginx.conf
-ExecReload=/bin/kill -s HUP \$MAINPID
-ExecStop=/bin/kill -s TERM \$MAINPID
-PrivateTmp=true
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    # 重新加载systemd
-    systemctl daemon-reload
+    # 复制主配置文件
+    cp nginx/conf/nginx.conf /etc/nginx/nginx.conf
     
-    # 启用Nginx服务
-    systemctl enable nginx
+    # 设置正确的权限
+    chown -R www-data:www-data /var/log/nginx
+    chown -R www-data:www-data /var/run/nginx
+    chmod -R 755 /etc/nginx
+    
+    # 创建证书目录
+    mkdir -p /opt/java_site/certs
+    chown -R www-data:www-data /opt/java_site/certs
+    chmod -R 700 /opt/java_site/certs
+    
+    # 如果mime.types不存在，从系统复制一份
+    if [ ! -f /etc/nginx/mime.types ]; then
+        if [ -f /etc/mime.types ]; then
+            cp /etc/mime.types /etc/nginx/mime.types
+        fi
+    fi
     
     echo -e "${GREEN}Nginx配置完成${NC}"
 }
@@ -406,6 +409,8 @@ main() {
     stop_service
     start_service
     echo -e "${GREEN}部署完成！${NC}"
+    echo -e "${YELLOW}Java应用运行在9090端口${NC}"
+    echo -e "${YELLOW}Nginx运行在80和443端口${NC}"
 }
 
 # 执行主函数

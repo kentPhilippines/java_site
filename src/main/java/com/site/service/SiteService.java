@@ -10,6 +10,8 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 
 @Service
 @RequiredArgsConstructor
@@ -18,7 +20,11 @@ import lombok.extern.slf4j.Slf4j;
 public class SiteService {
 
     private final SiteMapper siteMapper;
-    private final NginxService nginxService;
+    
+    @Lazy
+    @Autowired
+    private NginxService nginxService;
+    
     private final AcmeService acmeService;
 
     @Cacheable(key = "#host")
@@ -71,7 +77,7 @@ public class SiteService {
     public void addSite(Site site) {
         siteMapper.insert(site);
         // 如果启用了HTTPS，自动申请证书
-        if (site.getUrl().startsWith("https")) {
+        if (site.getSsl() == 1) {
             // 异步申请证书
             new Thread(() -> {
                 try {
