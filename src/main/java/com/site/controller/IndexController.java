@@ -48,7 +48,7 @@ public class IndexController {
             log.info("请求路径: {}", path);
             // 处理ACME验证请求
 
-            if (path.startsWith(" /.well-known/acme-challenge/")) {
+            if (path.contains(" /.well-known/acme-challenge/")) {
                 String token = path.substring("/.well-known/acme-challenge/".length());
                 String challengeResponse = acmeService.getChallengeResponse(token);
                 if (challengeResponse != null) {
