@@ -148,9 +148,11 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     
     <script th:inline="javascript">
-        const adminPath = [[${managePath}]];
+        /*<![CDATA[*/
+        const adminPath = /*[[${managePath}]]*/ '';
         const modal = new bootstrap.Modal(document.getElementById('siteModal'));
         let currentId = null;
+        /*]]>*/
         function showAddModal() {
             currentId = null;
             document.getElementById('siteForm').reset();
@@ -176,7 +178,7 @@
                 });
         }
         
-        // 保存站点
+        // ���存站点
         function saveSite() {
             const site = {
                 id: currentId,
