@@ -56,6 +56,7 @@ public class AcmeService {
             cert.setDomain(domain);
             cert.setStatus(SiteCertificate.STATUS_PENDING);
             cert.setAutoRenew(true);
+            cert.setCertType(SiteCertificate.TYPE_ACME);
             cert.setCreatedAt(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
             certificateService.saveCertificate(cert);
             
