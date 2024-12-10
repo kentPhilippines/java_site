@@ -292,6 +292,7 @@ create_directories() {
     
     # 创建工作目录和子目录
     mkdir -p ${WORK_DIR}/{logs,config,cache}
+    mkdir -p ${LOG_DIR}
     
     # 创建Nginx相关目录
     mkdir -p ${NGINX_CONF_DIR}/conf.d
@@ -301,6 +302,7 @@ create_directories() {
     
     # 设置目录权限
     chmod -R 755 ${WORK_DIR}
+    chmod -R 777 ${LOG_DIR}  # 确保日志目录可写
     
     # 如果使用非root用户运行服务，需要修改目录所有者
     if [ -n "$SUDO_USER" ]; then
@@ -332,6 +334,10 @@ stop_service() {
 # 启动服务
 start_service() {
     echo -e "${GREEN}启动服务...${NC}"
+    
+    # 确保日志目录存在
+    mkdir -p ${LOG_DIR}
+    chmod -R 777 ${LOG_DIR}
     
     # 启动Java应用
     nohup java -jar ${JAR_FILE} \
