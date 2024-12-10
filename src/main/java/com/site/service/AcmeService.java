@@ -18,9 +18,70 @@ public class AcmeService {
     private final CertificateService certificateService;
     private final NginxService nginxService;
     private static final String CERT_BASE_PATH = "certs";
-    private static final String EMAIL = "admin@example.com"; // 配置你的邮箱
+    private static final String EMAIL = "admin@example.com";
+    private static final String REQUEST_CERT_SCRIPT = "scripts/request-cert.sh";
     private static final String CERTBOT_WEBROOT = "/var/lib/letsencrypt/.well-known/acme-challenge";
     
+    /**
+     * 设置文件执行权限
+     */
+    private void setExecutablePermission(Path path) throws IOException {
+        File file = path.toFile();
+        // 确保文件存在
+        if (!file.exists()) {
+            throw new RuntimeException("脚本文件不存在: " + path);
+        }
+        
+        // 设置所有者执行权限
+        if (!file.setExecutable(true, false)) {
+            log.warn("无法设置文件执行权限: {}", path);
+        }
+        
+        // 设置读取权限
+        if (!file.setReadable(true, false)) {
+            log.warn("无法设置文件读取权限: {}", path);
+        }
+    }
+
+    /**
+     * 检查命令是否存在
+     */
+    private boolean checkCommand(String cmd) {
+        try {
+            Process process = Runtime.getRuntime().exec(new String[]{"which", cmd});
+            return process.waitFor() == 0;
+        } catch (Exception e) {
+            log.warn("命令{}不存在: {}", cmd, e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * 执行命令并返回输出
+     */
+    private String executeCommandWithOutput(String... command) throws IOException, InterruptedException {
+        Process process = new ProcessBuilder(command)
+            .redirectErrorStream(true)
+            .start();
+        
+        StringBuilder output = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                output.append(line).append("\n");
+                log.info(line);
+            }
+        }
+        
+        int exitCode = process.waitFor();
+        if (exitCode != 0) {
+            throw new RuntimeException("命令执行失败: " + String.join(" ", command) + 
+                "\n输出: " + output.toString());
+        }
+        
+        return output.toString();
+    }
+
     /**
      * 获取域名验证响应
      * @param token 验证token
@@ -32,23 +93,18 @@ public class AcmeService {
             if (Files.exists(challengePath)) {
                 return Files.readString(challengePath);
             }
-            log.warn("未找到验证文件: {}", challengePath);
             return null;
         } catch (IOException e) {
-            log.error("读取验证文件失败: {}", e.getMessage(), e);
+            log.error("读取challenge文件失败: {}", e.getMessage(), e);
             return null;
         }
     }
     
     public void requestCertificate(Site site) {
-        String domain = site.getName().replaceAll("https?://", "");
+        String domain = site.getUrl().replaceAll("https?://", "");
         
         try {
             log.info("开始为域名 {} 申请证书", domain);
-            
-            // 创建证书目录
-            Path certPath = Paths.get(CERT_BASE_PATH, domain);
-            Files.createDirectories(certPath);
             
             // 创建证书记录
             SiteCertificate cert = new SiteCertificate();
@@ -60,46 +116,33 @@ public class AcmeService {
             cert.setCreatedAt(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
             certificateService.saveCertificate(cert);
             
-            // 创建验证目录
-            Files.createDirectories(Paths.get(CERTBOT_WEBROOT));
-            
             try {
-                // 申请证书
-                String certbotCmd = String.format(
-                    "certbot certonly --webroot " +
-                    "--non-interactive " +
-                    "--agree-tos " +
-                    "--email %s " +
-                    "--domain %s " +
-                    "--webroot-path %s " +
-                    "--preferred-challenges http " +
-                    "--force-renewal " +
-                    "--debug-challenges",
-                    EMAIL, domain, CERTBOT_WEBROOT
+                // 设置脚本执行权限
+                Path scriptPath = Paths.get(REQUEST_CERT_SCRIPT);
+                setExecutablePermission(scriptPath);
+                
+                // 执行证书申请脚本
+                ProcessBuilder pb = new ProcessBuilder(
+                    "./" + REQUEST_CERT_SCRIPT,
+                    domain,
+                    EMAIL
                 );
+                pb.redirectErrorStream(true);
                 
-                log.info("执行certbot命令: {}", certbotCmd);
-                Process process = Runtime.getRuntime().exec(certbotCmd);
-                
-                // 读取输出
-                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                Process process = pb.start();
+                StringBuilder output = new StringBuilder();
+                try (BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(process.getInputStream()))) {
                     String line;
                     while ((line = reader.readLine()) != null) {
-                        log.info("Certbot输出: {}", line);
-                    }
-                }
-                
-                // 读取错误
-                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        log.warn("Certbot错误: {}", line);
+                        output.append(line).append("\n");
+                        log.info(line);
                     }
                 }
                 
                 int exitCode = process.waitFor();
                 if (exitCode != 0) {
-                    throw new RuntimeException("Certbot命令执行失败，退出码: " + exitCode);
+                    throw new RuntimeException("证书申请失败:\n" + output.toString());
                 }
                 
                 // 检查证书文件
@@ -107,7 +150,8 @@ public class AcmeService {
                 String privkeyPath = CERT_BASE_PATH + "/" + domain + "/privkey.pem";
                 String chainPath = CERT_BASE_PATH + "/" + domain + "/chain.pem";
                 
-                if (!Files.exists(Paths.get(fullchainPath)) || !Files.exists(Paths.get(privkeyPath))) {
+                if (!Files.exists(Paths.get(fullchainPath)) || 
+                    !Files.exists(Paths.get(privkeyPath))) {
                     throw new RuntimeException("证书文件未生成");
                 }
                 
@@ -118,32 +162,18 @@ public class AcmeService {
                 cert.setChainFile(chainPath);
                 certificateService.saveCertificate(cert);
                 
-                // 生成Nginx配置
-                nginxService.generateSiteConfig(domain);
-                
                 log.info("证书申请成功: {}", domain);
                 
-            } finally {
-                // 重启Nginx
-                try {
-                    log.info("重启Nginx服务");
-                    executeCommand("systemctl start nginx");
-                } catch (Exception e) {
-                    log.error("重启Nginx失败: {}", e.getMessage(), e);
-                }
+            } catch (Exception e) {
+                log.error("证书申请失败: {}", e.getMessage(), e);
+                cert.setStatus(SiteCertificate.STATUS_EXPIRED);
+                certificateService.saveCertificate(cert);
+                throw e;
             }
             
         } catch (Exception e) {
             log.error("证书申请失败: {}", e.getMessage(), e);
             throw new RuntimeException("证书申请失败: " + e.getMessage(), e);
-        }
-    }
-    
-    private void executeCommand(String command) throws IOException, InterruptedException {
-        Process process = Runtime.getRuntime().exec(command);
-        int exitCode = process.waitFor();
-        if (exitCode != 0) {
-            throw new RuntimeException("命令执行失败: " + command + ", 退出码: " + exitCode);
         }
     }
 } 
