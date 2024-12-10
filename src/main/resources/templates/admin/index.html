@@ -68,9 +68,10 @@
                                 </span>
                             </td>
                             <td th:text="${site.description}"></td>
-                            <td th:text="${site.syncSource}"></td>
                             <td th:text="${site.createTime}"></td>
                             <td th:text="${site.updateTime}"></td>
+                            <td th:text="${site.syncSource}"></td>
+
                             <td>
                                 
                                 <button class="btn btn-sm btn-warning" th:onclick="'editSite(' + ${site.id} + ')'">编辑</button>

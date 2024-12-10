@@ -1,62 +1,58 @@
 package com.site.service;
 
-import com.site.entity.Site;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import java.io.*;
-import java.nio.file.*;
-import java.util.List;
+
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class NginxService {
 
-    @Value("${nginx.conf-path:/opt/java_site/nginx}")
-    private String nginxConfPath;
+    @Value("${nginx.base-path:/opt/java_site/nginx}")
+    private String nginxBasePath;
 
     @Value("${nginx.cert-path:/opt/java_site/certs}")
     private String certPath;
 
-
-    /**
-     * 为站点生成Nginx配置
-     */
     public void generateSiteConfig(String domain) {
-
         try {
-            String configPath = nginxConfPath + "/conf.d/" + domain + ".conf";
-            
-            // 创建配置目录
-            new File(nginxConfPath + "/conf.d").mkdirs();
-            
-            // 生成配置文件
+            String confPath = nginxBasePath + "/conf.d/" + domain + ".conf";
             String config = generateNginxConfig(domain);
-            Files.write(Paths.get(configPath), config.getBytes());
             
-            log.info("已生成站点 {} 的Nginx配置: {}", domain, configPath);
+            // 确保目录存在
+            new File(nginxBasePath + "/conf.d").mkdirs();
+            
+            // 写入配置文件
+            try (FileWriter writer = new FileWriter(confPath)) {
+                writer.write(config);
+            }
+            
+            log.info("已生成站点 {} 的Nginx配置: {}", domain, confPath);
             
             // 重新加载Nginx配置
             reloadNginx();
+            
         } catch (Exception e) {
             log.error("生成Nginx配置失败: {}", e.getMessage(), e);
             throw new RuntimeException("生成Nginx配置失败: " + e.getMessage());
         }
     }
 
-    /**
-     * 删除站点的Nginx配置
-     */
     public void deleteSiteConfig(String domain) {
         try {
-            String configPath = nginxConfPath + "/conf.d/" + domain + ".conf";
-            Files.deleteIfExists(Paths.get(configPath));
+            String confPath = nginxBasePath + "/conf.d/" + domain + ".conf";
+            Files.deleteIfExists(Paths.get(confPath));
             
             log.info("已删除站点 {} 的Nginx配置", domain);
             
-            // 重新加��Nginx配置
+            // 重新加载Nginx配置
             reloadNginx();
         } catch (Exception e) {
             log.error("删除Nginx配置失败: {}", e.getMessage(), e);
@@ -64,20 +60,30 @@ public class NginxService {
         }
     }
 
-  
+    private void reloadNginx() {
+        try {
+            Process process = Runtime.getRuntime().exec(new String[]{
+                "nginx", "-s", "reload", "-c", nginxBasePath + "/nginx.conf"
+            });
+            
+            int exitCode = process.waitFor();
+            if (exitCode != 0) {
+                throw new RuntimeException("Nginx重新加载失败，退出码: " + exitCode);
+            }
+            log.info("Nginx配置已重新加载");
+        } catch (Exception e) {
+            log.error("重新加载Nginx配置失败: {}", e.getMessage(), e);
+            throw new RuntimeException("重新加载Nginx配置失败: " + e.getMessage());
+        }
+    }
 
-    /**
-     * 生成Nginx配置内容
-     */
     private String generateNginxConfig(String domain) {
         StringBuilder config = new StringBuilder();
-        config.append("# HTTP server\n")
-             .append("server {\n")
+        config.append("server {\n")
              .append("    listen 80;\n")
              .append(String.format("    server_name %s;\n", domain))
              .append("    return 301 https://$host$request_uri;\n")
              .append("}\n\n")
-             .append("# HTTPS server\n")
              .append("server {\n")
              .append("    listen 443 ssl http2;\n")
              .append(String.format("    server_name %s;\n\n", domain))
@@ -121,22 +127,5 @@ public class NginxService {
              .append("}\n");
         
         return config.toString();
-    }
-
-    /**
-     * 重新加载Nginx配置
-     */
-    private void reloadNginx() {
-        try {
-            Process process = Runtime.getRuntime().exec("nginx -p " + System.getProperty("user.dir") + " -c " + nginxConfPath + "/nginx.conf -s reload");
-            int exitCode = process.waitFor();
-            if (exitCode != 0) {
-                throw new RuntimeException("Nginx重新加载失败，退出码: " + exitCode);
-            }
-            log.info("Nginx��置已重新加载");
-        } catch (Exception e) {
-            log.error("重新加载Nginx配置失败: {}", e.getMessage(), e);
-            throw new RuntimeException("重新加载Nginx配置失败: " + e.getMessage());
-        }
     }
 } 
