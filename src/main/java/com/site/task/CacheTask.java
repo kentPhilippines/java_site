@@ -2,7 +2,6 @@ package com.site.task;
 
 import com.site.entity.Site;
 import com.site.service.SiteService;
-import com.site.util.CacheUtil;
 import com.site.util.HttpUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -53,10 +52,8 @@ public class CacheTask {
             new ArrayBlockingQueue<>(queueSize),
             new ThreadPoolExecutor.CallerRunsPolicy()  // 队列满时，在调用线程执行任务
         );
-        
         // 创建调度线程池
         scheduledExecutor = Executors.newScheduledThreadPool(1);
-        
         // 启动监控任务
         scheduledExecutor.scheduleAtFixedRate(this::monitorTasks, 1, 1, TimeUnit.MINUTES);
     }
