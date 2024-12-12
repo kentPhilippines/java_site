@@ -33,7 +33,7 @@ public class HttpClientConfig {
         HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory();
         factory.setHttpClient(httpClient());
         // 连接超时
-        factory.setConnectTimeout(5000);
+        factory.setConnectTimeout(50000);
         // 数据读取超时时间
         factory.setReadTimeout(10000);
         // 连接不够用的等待时间
