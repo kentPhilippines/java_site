@@ -5,29 +5,22 @@ import org.springframework.stereotype.Component;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import lombok.Data;
 import com.site.entity.Site;
-import com.site.service.SiteService;
-import org.springframework.scheduling.annotation.Scheduled;
-
-import java.util.concurrent.TimeUnit;
+import java.nio.channels.FileChannel;
+import java.nio.MappedByteBuffer;
+import java.nio.ByteBuffer;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class CacheUtil {
 
-    private final Map<String, CacheItem> memoryCache = new ConcurrentHashMap<>();
     private static final String CACHE_DIR = "cache";
-    private static final long EXPIRE_TIME = TimeUnit.HOURS.toMillis(1);  // 1小时过期
 
     public void put(String key, String value, Site site) {
-        memoryCache.put(key, new CacheItem(value));
         try {
             String filePath = getFilePath(key, site);
             createDirectories(filePath);
@@ -62,38 +55,49 @@ public class CacheUtil {
     public byte[] getBytes(String key, Site site) {
         try {
             String filePath = getFilePath(key, site);
-            if (Files.exists(Paths.get(filePath))) {
-                return Files.readAllBytes(Paths.get(filePath));
+            Path path = Paths.get(filePath);
+            if (!Files.exists(path)) {
+                return null;
+            }
+
+            long fileSize = Files.size(path);
+            
+            // 小文件（小于8KB）直接读取
+            if (fileSize < 8192) {
+                return Files.readAllBytes(path);
+            }
+            
+            // 中等文件（小于2MB）使用缓冲流分块读取
+            if (fileSize < 2 * 1024 * 1024) {
+                byte[] data = new byte[(int) fileSize];
+                try (BufferedInputStream bis = new BufferedInputStream(Files.newInputStream(path))) {
+                    int offset = 0;
+                    int numRead;
+                    while (offset < data.length && (numRead = bis.read(data, offset, data.length - offset)) >= 0) {
+                        offset += numRead;
+                    }
+                }
+                return data;
+            }
+            
+            // 大文件使用零拷贝
+            try (FileChannel fileChannel = FileChannel.open(path, StandardOpenOption.READ)) {
+                ByteBuffer buffer = ByteBuffer.allocateDirect((int) fileSize);
+                while (buffer.hasRemaining()) {
+                    if (fileChannel.read(buffer) == -1) {
+                        break;
+                    }
+                }
+                buffer.flip();
+                byte[] data = new byte[buffer.limit()];
+                buffer.get(data);
+                return data;
             }
         } catch (IOException e) {
-            log.error("读取二进制文件失败", e);
+            log.error("读取二进制文件失败: {}", key, e);
+            return null;
         }
-        return null;
     }
-
-    public String get(String key, Site site) {
-        // 先从内存缓存获取
-        CacheItem item = memoryCache.get(key);
-        if (item != null && !item.isExpired()) {
-            return item.getValue();
-        }
-
-        // 如果内存中没有或已过期，从文件获取
-        try {
-            String filePath = getFilePath(key, site);
-            if (Files.exists(Paths.get(filePath))) {
-                String content = new String(Files.readAllBytes(Paths.get(filePath)), StandardCharsets.UTF_8);
-                memoryCache.put(key, new CacheItem(content));
-                return content;
-            }
-        } catch (IOException e) {
-            log.error("读取缓存文件失败", e);
-        }
-
-        return null;
-    }
-
-
 
     private String getFilePath(String key, Site site) {
         try {
@@ -124,26 +128,8 @@ public class CacheUtil {
                     key.replaceAll("[^a-zA-Z0-9.]", "_")).getAbsolutePath();
         }
     }
-
-    @Scheduled(fixedRate = 3600000) // 每小时清理一次过期缓存
-    public void cleanExpiredCache() {
-        log.info("开始清理过期缓存...");
-        memoryCache.entrySet().removeIf(entry -> entry.getValue().isExpired());
-        log.info("过期缓存清理完成");
-    }
-
-    @Data
-    private static class CacheItem {
-        private final String value;
-        private final long timestamp;
-
-        public CacheItem(String value) {
-            this.value = value;
-            this.timestamp = System.currentTimeMillis();
-        }
-
-        public boolean isExpired() {
-            return System.currentTimeMillis() - timestamp > EXPIRE_TIME;
-        }
+    public String get(String key, Site site) {
+        byte[] data = getBytes(key, site);
+        return data != null ? new String(data, StandardCharsets.UTF_8) : null;
     }
 }

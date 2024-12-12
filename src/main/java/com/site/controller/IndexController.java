@@ -15,6 +15,9 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.InputStream;
 import java.io.ByteArrayOutputStream;
 import java.net.URL;
+import java.io.IOException;
+import java.io.BufferedOutputStream;
+import java.io.OutputStream;
 
 @Slf4j
 @RestController
@@ -187,15 +190,6 @@ public class IndexController {
         return proxyConfig.getStaticExtensions().stream()
                 .anyMatch(ext -> lowercasePath.endsWith(ext));
     }
-
-    public static void main(String[] args) {
-        String path = " /.well-known/acme-challenge/d0j4CTJ2Tebu_4uDn-O37MoCYGW18mtVzcQjhmxKXFE";
-        if (path.startsWith(" /.well-known/acme-challenge/")) {
-            System.out.println("duide ");
-        }
-
-
-
-
-    }
+ 
+ 
 }
