@@ -42,7 +42,7 @@ public class SitemapGenerator {
                 dir.mkdirs();
             }
             // 获取所有URL
-            Set<String> urls = crawlUrls(site.getUrl());
+            Set<String> urls = crawlUrls(site.getName());
             
 
             // 生成sitemap文件

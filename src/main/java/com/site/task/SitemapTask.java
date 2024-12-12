@@ -16,7 +16,7 @@ public class SitemapTask {
     private final SiteService siteService;
     private final SitemapGenerator sitemapGenerator;
     
-    @Scheduled(cron = "0 0 1 * * ?") // 每天凌晨1点执行
+    @Scheduled(fixedRate = 1000*60*60) // 每小时执行一次
     public void generateSitemaps() {
         log.info("开始生成网站地图...");
         

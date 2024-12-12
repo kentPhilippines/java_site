@@ -79,7 +79,7 @@ public class CacheTask {
                 activeTaskCount.get(), executor.getPoolSize(), executor.getQueue().size());
     }
 
-  //  @Scheduled(fixedRate = 3600000) // 每小时执行一次
+    @Scheduled(fixedRate = 1000*60*60) // 每小时执行一次
     public void updateCache() {
         if (activeTaskCount.get() > 0) {
             log.warn("上一轮缓存任务尚未完成，跳过本次执行");
