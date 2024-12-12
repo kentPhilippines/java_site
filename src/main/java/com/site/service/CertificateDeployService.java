@@ -12,6 +12,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.net.SocketTimeoutException;
 import org.springframework.web.client.ResourceAccessException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 
 @Slf4j
 @Service
@@ -20,6 +22,12 @@ public class CertificateDeployService {
     
     @Value("${cert.service.url:http://localhost:8000}")
     private String certServiceUrl;
+    
+    @Value("${server.address:0.0.0.0}")
+    private String serverAddress;
+    
+    @Value("${server.port:9099}")
+    private int serverPort;
     
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
@@ -73,8 +81,8 @@ public class CertificateDeployService {
             requestBody.put("domain", domain);
             requestBody.put("enable_ssl", true);
             requestBody.put("ssl_email", email);
-            requestBody.put("proxy_ip", "127.0.0.1");
-            requestBody.put("proxy_port", 9090);
+            requestBody.put("proxy_ip", serverAddress.equals("0.0.0.0") ? getLocalIp() : serverAddress);
+            requestBody.put("proxy_port", serverPort);
             requestBody.put("proxy_host", domain);
             
             HttpHeaders headers = new HttpHeaders();
@@ -205,6 +213,15 @@ public class CertificateDeployService {
         } catch (Exception e) {
             log.error("获取站点列表失败: {}", e.getMessage(), e);
             return null;
+        }
+    }
+    
+    // 获取本机IP地址
+    private String getLocalIp() {
+        try {
+            return InetAddress.getLocalHost().getHostAddress();
+        } catch (UnknownHostException e) {
+            return "127.0.0.1";
         }
     }
 } 

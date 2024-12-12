@@ -1,5 +1,6 @@
 server:
   port: 9099
+  address: 127.0.0.1
   tomcat:
     max-threads: 800
     min-spare-threads: 50
@@ -12,7 +13,6 @@ server:
     remote-ip-header: X-Forwarded-For
     protocol-header: X-Forwarded-Proto
     protocol-header-https-value: https
-    additional-tld-skip-patterns: ['*.nginx-system.com']
 
 cert:
   service:
