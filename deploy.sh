@@ -133,8 +133,7 @@ build_project() {
     
     # 执行构建
     ${MAVEN_HOME}/bin/mvn clean package -DskipTests \
-        -Dmaven.home=${MAVEN_HOME} \
-        -Djavax.net.ssl.trustStore=${JAVA_HOME}/lib/security/cacerts
+        -Dmaven.home=${MAVEN_HOME}
     
     if [ $? -eq 0 ]; then
         echo "构建成功"
@@ -159,7 +158,7 @@ stop_service() {
 start_service() {
     echo "正在启动服务..."
     cd ${WORK_DIR}
-    ${JAVA_HOME}/bin/java -jar ${JAR_NAME} --spring.profiles.active=prod > app.log 2>&1 &
+    ${JAVA_HOME}/bin/java -jar ${JAR_NAME}  > app.log 2>&1 &
     echo "服务已启动，日志文件：${WORK_DIR}/app.log"
 }
 
