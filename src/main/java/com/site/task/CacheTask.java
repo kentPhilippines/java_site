@@ -28,7 +28,6 @@ public class CacheTask {
     
     private final SiteService siteService;
     private final HttpUtils httpUtils;
-    private final CacheUtil cacheUtil;
     
     @Value("${cache.task.thread.pool.size:10}")
     private int threadPoolSize;
