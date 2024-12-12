@@ -22,18 +22,7 @@ CREATE TABLE IF NOT EXISTS site (
     sitemap INTEGER DEFAULT 1,
     sync_source VARCHAR(255)
 );
-
--- 目标站点表
-CREATE TABLE IF NOT EXISTS target_site (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    domain VARCHAR(100) NOT NULL UNIQUE,
-    base_url TEXT NOT NULL,
-    enabled BOOLEAN DEFAULT 1,
-    description TEXT,
-    tdk TEXT,
-    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-    update_time DATETIME DEFAULT CURRENT_TIMESTAMP
-);
+ 
 
 -- 证书表
 CREATE TABLE IF NOT EXISTS site_certificates (
@@ -51,12 +40,44 @@ CREATE TABLE IF NOT EXISTS site_certificates (
     FOREIGN KEY (site_id) REFERENCES site(id) ON DELETE CASCADE
 );
 
+-- 站点访问统计表
+CREATE TABLE IF NOT EXISTS site_stats (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    site_id INTEGER NOT NULL,
+    domain TEXT NOT NULL,
+    visits INTEGER DEFAULT 0,
+    unique_visits INTEGER DEFAULT 0,
+    bandwidth INTEGER DEFAULT 0,
+    date TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+);
+
+-- 关键字替换规则表
+CREATE TABLE IF NOT EXISTS site_keywords (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    site_id INTEGER NOT NULL,
+    source_word TEXT NOT NULL,
+    target_word TEXT NOT NULL,
+    page_url TEXT,
+    enabled INTEGER DEFAULT 1,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (site_id) REFERENCES site(id) ON DELETE CASCADE
+);
+
 -- 创建索引
 CREATE INDEX IF NOT EXISTS idx_config_key ON site_config(config_key);
 CREATE INDEX IF NOT EXISTS idx_site_name ON site(name);
 CREATE INDEX IF NOT EXISTS idx_target_domain ON target_site(domain);
 CREATE INDEX IF NOT EXISTS idx_cert_domain ON site_certificates(domain);
 CREATE INDEX IF NOT EXISTS idx_cert_status ON site_certificates(status);
+CREATE INDEX IF NOT EXISTS idx_site_stats_site_id ON site_stats(site_id);
+CREATE INDEX IF NOT EXISTS idx_site_stats_date ON site_stats(date);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_site_stats_site_date ON site_stats(site_id, date);
+CREATE INDEX IF NOT EXISTS idx_keywords_site_id ON site_keywords(site_id);
+CREATE INDEX IF NOT EXISTS idx_keywords_source ON site_keywords(source_word);
 
 -- 插入默认配置
 INSERT OR IGNORE INTO site_config (config_key, config_value, enabled) 

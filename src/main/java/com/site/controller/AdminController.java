@@ -36,7 +36,7 @@ public class AdminController {
     
     @PostConstruct
     public void init() {
-        // 如果配置文件中没有设置admin.path，生成一个随机路径
+        // 如果配置���件中没有设置admin.path，生成一个随机路径
         if (adminPath == null || adminPath.isEmpty()) {
             SecureRandom random = new SecureRandom();
             managePath = String.format("%06d", random.nextInt(1000000));
@@ -72,5 +72,24 @@ public class AdminController {
         model.addAttribute("adminPath", adminPath);
         model.addAttribute("managePath", managePath);   
         return "admin/certificate";
+    }
+
+    @GetMapping("/site/{id}")
+    public String siteDetail(@PathVariable Long id, Model model) {
+        Site site = siteService.selectById(id);
+        if (site == null) {
+            return "redirect:" + adminPath;
+        }
+        
+        // 获取站点的证书信息
+        List<SiteCertificate> certificates = certificateService.getCertificates(id);
+        SiteCertificate currentCert = certificates.isEmpty() ? null : certificates.get(0);
+        
+        model.addAttribute("site", site);
+        model.addAttribute("certificate", currentCert);
+        model.addAttribute("adminPath", adminPath);
+        model.addAttribute("managePath", managePath);
+        
+        return "admin/site-detail";
     }
 } 

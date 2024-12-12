@@ -33,4 +33,7 @@ public interface SiteCertificateMapper {
     
     @Select("SELECT * FROM site_certificates WHERE id = #{id}")
     SiteCertificate findById(Long id);
+    
+    @Delete("DELETE FROM site_certificates WHERE site_id = #{siteId}")
+    void deleteBySiteId(Long siteId);
 } 

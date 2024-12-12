@@ -1,224 +1,594 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
-    <title>站点管理</title>
     <meta charset="UTF-8">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>站点管理</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        .action-buttons {
+            white-space: nowrap;
+        }
+        .action-buttons .btn {
+            margin-right: 5px;
+        }
+    </style>
 </head>
 <body>
-    <div class="container mt-4">
-        <h2>站点管理</h2>
-        
-        <div class="card mb-4">
-            <div class="card-header">
-                系统信息
+<div class="container mt-4">
+    <h2>站点管理</h2>
+    
+    <!-- 批量操作按钮 -->
+    <div class="mb-3">
+        <button class="btn btn-primary" onclick="addSite()">添加站点</button>
+        <button class="btn btn-danger" onclick="batchDelete()">批量删除</button>
+    </div>
+    
+    <!-- 站点列表 -->
+    <table class="table">
+        <thead>
+            <tr>
+                <th><input type="checkbox" id="selectAll" onclick="toggleSelectAll()"></th>
+                <th>ID</th>
+                <th>域名</th>
+                <th>状态</th>
+                <th>缓存</th>
+                <th>HTTPS</th>
+                <th>站点地图</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr th:each="site : ${sites}">
+                <td><input type="checkbox" class="site-checkbox" th:value="${site.id}"></td>
+                <td th:text="${site.id}"></td>
+                <td th:text="${site.name}"></td>
+                <td>
+                    <span th:if="${site.enabled == 1}" class="badge bg-success">启用</span>
+                    <span th:if="${site.enabled == 0}" class="badge bg-danger">禁用</span>
+                </td>
+                <td>
+                    <span th:if="${site.isCache == 1}" class="badge bg-success">启用</span>
+                    <span th:if="${site.isCache == 0}" class="badge bg-danger">禁用</span>
+                </td>
+                <td>
+                    <span th:if="${site.ssl == 1}" class="badge bg-success">启用</span>
+                    <span th:if="${site.ssl == 0}" class="badge bg-danger">禁用</span>
+                </td>
+                <td>
+                    <span th:if="${site.sitemap == 1}" class="badge bg-success">启用</span>
+                    <span th:if="${site.sitemap == 0}" class="badge bg-danger">禁用</span>
+                </td>
+                <td class="action-buttons">
+                    <button class="btn btn-sm btn-info" th:onclick="'editSite(' + ${site.id} + ')'">编辑</button>
+                    <button class="btn btn-sm btn-primary" th:onclick="'showStats(' + ${site.id} + ')'">统计</button>
+                    <button class="btn btn-sm btn-warning" th:onclick="'manageCert(' + ${site.id} + ')'">证书</button>
+                    <a th:href="@{'/' + ${managePath} + '/keywords/manage/' + ${site.id}}" class="btn btn-sm btn-success">关键字</a>
+                    <button class="btn btn-sm btn-danger" th:onclick="'deleteSite(' + ${site.id} + ')'">删除</button>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- 统计图表模态框 -->
+<div class="modal fade" id="statsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">访问统计</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="card-body">
-                <p>服务状态：运行中</p>
-                <p>服务端口：<span th:text="${serverPort}">801</span></p>
-                <p>管理路径：/<span th:text="${managePath}">******</span></p>
-                <p>日志位置：logs/app.log</p>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col">
+                        <input type="date" id="startDate" class="form-control">
+                    </div>
+                    <div class="col">
+                        <input type="date" id="endDate" class="form-control">
+                    </div>
+                    <div class="col">
+                        <button class="btn btn-primary" onclick="refreshStats()">查询</button>
+                    </div>
+                </div>
+                <div id="statsChart" style="height: 400px;"></div>
             </div>
         </div>
-        
-        <div class="card mb-4">
-            <div class="card-header">
-                目标站点管理
-                <button class="btn btn-primary btn-sm float-end" onclick="showAddModal()">添加站点</button>
+    </div>
+</div>
+
+<!-- 添加/编辑站点模态框 -->
+<div class="modal fade" id="siteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">添加/编辑站点</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="card-body">
-                <table class="table">
+            <div class="modal-body">
+                <form id="siteForm">
+                    <input type="hidden" id="siteId">
+                    <div class="mb-3">
+                        <label class="form-label">域名</label>
+                        <input type="text" class="form-control" id="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">目标URL</label>
+                        <input type="text" class="form-control" id="url" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">描述</label>
+                        <input type="text" class="form-control" id="description">
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="enabled" checked>
+                        <label class="form-check-label">启用</label>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="isCache" checked>
+                        <label class="form-check-label">启用缓存</label>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="sitemap" checked>
+                        <label class="form-check-label">启用网站地图</label>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="ssl" checked>
+                        <label class="form-check-label">启用SSL</label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveSite()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 证书管理模态框 -->
+<div class="modal fade" id="certModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">证书管理</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="certContent"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- TDK设置模态框 -->
+<div class="modal fade" id="tdkModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">TDK设置</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="tdkForm">
+                    <input type="hidden" id="tdkSiteId">
+                    <div class="mb-3">
+                        <label class="form-label">Title</label>
+                        <input type="text" class="form-control" id="title" placeholder="网站标题">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" id="metaDescription" rows="3" placeholder="网站描述"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Keywords</label>
+                        <input type="text" class="form-control" id="keywords" placeholder="关键词，用逗号分隔">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveTdk()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 关键字替换模态框 -->
+<div class="modal fade" id="keywordsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">关键字替换设置</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <button class="btn btn-primary btn-sm" onclick="addKeywordRow()">添加规则</button>
+                </div>
+                <table class="table" id="keywordsTable">
                     <thead>
                         <tr>
-                            <th>域名</th>
-                            <th>目标URL</th>
+                            <th>原关键字</th>
+                            <th>替换为</th>
                             <th>状态</th>
-                            <th>缓存</th>
-                            <th>网站地图</th>
-                            <th>SSL</th>
-                            <th>描述</th>
-                            <th>创建时间</th>
-                            <th>更新时间</th>
-                            <th>同步源路径</th>
                             <th>操作</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr th:each="site : ${sites}">
-                            <td th:text="${site.name}"></td>
-                            <td th:text="${site.url}"></td>
-                            <td>
-                                <span th:class="${site.enabled  == 1 ? 'badge bg-success' : 'badge bg-danger'}"
-                                      th:text="${site.enabled == 1 ? '启用' : '禁用'}">
-                                </span>
-                            </td>
-                            <td>
-                                <span th:class="${site.isCache  == 1 ? 'badge bg-success' : 'badge bg-danger'}"
-                                      th:text="${site.isCache  == 1 ? '启用' : '禁用'}">
-                                </span>
-                            </td>
-                            <td>
-                                <span th:class="${site.sitemap  == 1 ? 'badge bg-success' : 'badge bg-danger'}"
-                                      th:text="${site.sitemap  == 1 ? '启用' : '禁用'}">
-                                </span>
-                            </td>
-                             <td>
-                                <span th:class="${site.ssl  == 1 ? 'badge bg-success' : 'badge bg-danger'}"
-                                      th:text="${site.ssl  == 1 ? '启用' : '禁用'}">
-                                </span>
-                            </td>
-                            <td th:text="${site.description}"></td>
-                            <td th:text="${site.createTime}"></td>
-                            <td th:text="${site.updateTime}"></td>
-                            <td th:text="${site.syncSource}"></td>
-
-                            <td>
-                                
-                                <button class="btn btn-sm btn-warning" th:onclick="'editSite(' + ${site.id} + ')'">编辑</button>
-                                <button class="btn btn-sm btn-danger" th:data-site-name="${site.name}" onclick="deleteSite(this)">删除</button>
-                                <a class="btn btn-sm btn-info" th:href="@{${adminPath} + '/certificates/' + ${site.id}}">证书管理</a>
-                            </td>
-                        </tr>
                     </tbody>
                 </table>
             </div>
-        </div>
-        
-        <div class="card">
-            <div class="card-header">
-                缓存统计
-            </div>
-            <div class="card-body">
-                <p>缓存目录：cache/</p>
-                <p>缓存数量：计算中...</p>
-                <button class="btn btn-warning btn-sm">清理缓存</button>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveKeywords()">保存</button>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- 添加/编辑模态框 -->
-    <div class="modal fade" id="siteModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">添加/编辑站点</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="siteForm">
-                        <input type="hidden" id="siteId">
-                        <div class="mb-3">
-                            <label class="form-label">域名</label>
-                            <input type="text" class="form-control" id="name" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">目标URL</label>
-                            <input type="text" class="form-control" id="url" required>
-                        </div>
-                        <div class="mb-3" >
-                            <label class="form-label">描述</label>
-                            <input type="text" class="form-control" id="description">
-                        </div>
-                        <div class="mb-3 form-check">
-                            <input type="checkbox" class="form-check-input" id="enabled" checked>
-                            <label class="form-check-label">启用</label>
-                        </div>
-                        <div class="mb-3 form-check">
-                            <input type="checkbox" class="form-check-input" id="isCache" checked>
-                            <label class="form-check-label">启用缓存</label>
-                        </div>
-                        <div class="mb-3 form-check">
-                            <input type="checkbox" class="form-check-input" id="sitemap" checked>
-                            <label class="form-check-label">启用网站地图</label>
-                        </div>
-                        <div class="mb-3 form-check">
-                            <input type="checkbox" class="form-check-input" id="ssl" checked>
-                            <label class="form-check-label">启用SSL</label>
-                        </div>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                    <button type="button" class="btn btn-primary" onclick="saveSite()">保存</button>
-                </div>
-            </div>
-        </div>
-    </div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<script th:inline="javascript">
+const managePath = [[${managePath}]];
+let currentSiteId = null;
+let statsChart = null;
+let statsModal = null;
+let siteModal = null;
+let certModal = null;
+let tdkModal = null;
+let keywordsModal = null;
+let currentKeywordSiteId = null;
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    
-    <script th:inline="javascript">
-        /*<![CDATA[*/
-        const adminPath = /*[[${managePath}]]*/ '';
-        const modal = new bootstrap.Modal(document.getElementById('siteModal'));
-        let currentId = null;
-        /*]]>*/
-        function showAddModal() {
-            currentId = null;
-            document.getElementById('siteForm').reset();
-            document.querySelector('.modal-title').textContent = '添加站点';
-            modal.show();
-        }
-        function editSite(id) {
-            currentId = id;
-            document.querySelector('.modal-title').textContent = '编辑站点';
-            fetch(`/${adminPath}/sites/${id}`)
-                .then(response => response.json())
-                .then(site => {
-                    document.getElementById('name').value = site.name;
-                    document.getElementById('url').value = site.url;
-                    document.getElementById('description').value = site.description;
-                    document.getElementById('enabled').checked = site.enabled == 1;
-                    document.getElementById('isCache').checked = site.isCache == 1;
-                    document.getElementById('sitemap').checked = site.sitemap == 1;
-                    document.getElementById('ssl').checked = site.ssl == 1;
-                    // 禁用不允许修改的字段
-                    document.getElementById('name').disabled = true;
-                    modal.show();
-                });
-        }
-        
-        // ���存站点
-        function saveSite() {
-            const site = {
-                id: currentId,
-                name: document.getElementById('name').value,
-                url: document.getElementById('url').value,
-                description: document.getElementById('description').value,
-                enabled: document.getElementById('enabled').checked ? 1 : 0,
-                isCache: document.getElementById('isCache').checked ? 1 : 0,
-                sitemap: document.getElementById('sitemap').checked ? 1 : 0,
-                ssl: document.getElementById('ssl').checked ? 1 : 0
-            };
-            
-            
-            const url = currentId ? `/${adminPath}/sites/${currentId}` : `/${adminPath}/sites`;
-            const method = currentId ? 'PUT' : 'POST';
-            
-            fetch(url, {
-                method: method,
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(site)
-            }).then(() => {
-                modal.hide();
-                window.location.reload();
-            });
-        }
-        
-        // 删除站点
-        function deleteSite(button) {
-            const siteName = button.getAttribute('data-site-name');
-            if (confirm('确定要删除这个站点吗？')) {
-                // 使用动态管理路径
-                fetch(`/${adminPath}/sites/${siteName}`, {
-                    method: 'DELETE'
-                }).then(() => {
-                    window.location.reload();
-                });
+document.addEventListener('DOMContentLoaded', function() {
+    statsModal = new bootstrap.Modal(document.getElementById('statsModal'));
+    statsChart = echarts.init(document.getElementById('statsChart'));
+    siteModal = new bootstrap.Modal(document.getElementById('siteModal'));
+    certModal = new bootstrap.Modal(document.getElementById('certModal'));
+    tdkModal = new bootstrap.Modal(document.getElementById('tdkModal'));
+    keywordsModal = new bootstrap.Modal(document.getElementById('keywordsModal'));
+});
+
+function toggleSelectAll() {
+    const checked = document.getElementById('selectAll').checked;
+    document.querySelectorAll('.site-checkbox').forEach(checkbox => {
+        checkbox.checked = checked;
+    });
+}
+
+function getSelectedSiteIds() {
+    return Array.from(document.querySelectorAll('.site-checkbox:checked')).map(cb => cb.value);
+}
+
+function showStats(siteId) {
+    currentSiteId = siteId;
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    document.getElementById('startDate').value = formatDate(thirtyDaysAgo);
+    document.getElementById('endDate').value = formatDate(now);
+    statsModal.show();
+    refreshStats();
+}
+
+function refreshStats() {
+    const startDate = document.getElementById('startDate').value;
+    const endDate = document.getElementById('endDate').value;
+    fetch(`/site/stats/${currentSiteId}?startDate=${startDate}&endDate=${endDate}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.code === 0) {
+                updateStatsChart(data.data);
+            } else {
+                alert(data.message);
             }
+        });
+}
+
+function updateStatsChart(stats) {
+    const dates = stats.map(item => item.date);
+    const visits = stats.map(item => item.visits);
+    const uniqueVisits = stats.map(item => item.uniqueVisits);
+    const bandwidth = stats.map(item => item.bandwidth / 1024 / 1024); // Convert to MB
+    
+    const option = {
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: {
+                type: 'shadow'
+            }
+        },
+        legend: {
+            data: ['总访问量', '独立访客', '带宽使用(MB)']
+        },
+        grid: {
+            left: '3%',
+            right: '4%',
+            bottom: '3%',
+            containLabel: true
+        },
+        xAxis: {
+            type: 'category',
+            data: dates
+        },
+        yAxis: [
+            {
+                type: 'value',
+                name: '访问量'
+            },
+            {
+                type: 'value',
+                name: '带宽(MB)',
+                axisLabel: {
+                    formatter: '{value} MB'
+                }
+            }
+        ],
+        series: [
+            {
+                name: '总访问量',
+                type: 'line',
+                data: visits
+            },
+            {
+                name: '独立访客',
+                type: 'line',
+                data: uniqueVisits
+            },
+            {
+                name: '带宽使用(MB)',
+                type: 'bar',
+                yAxisIndex: 1,
+                data: bandwidth
+            }
+        ]
+    };
+    
+    statsChart.setOption(option);
+}
+
+function formatDate(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function batchDelete() {
+    const siteIds = getSelectedSiteIds();
+    if (siteIds.length === 0) {
+        alert('请选择要删除的站点');
+        return;
+    }
+    if (!confirm('确定要删除选中的站点吗？')) {
+        return;
+    }
+    fetch('/site/batch/delete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(siteIds)
+    }).then(response => response.json())
+      .then(data => {
+          if (data.code === 0) {
+              location.reload();
+          } else {
+              alert(data.message);
+          }
+      });
+}
+
+function editSite(id) {
+    document.querySelector('.modal-title').textContent = '编辑站点';
+    document.getElementById('siteId').value = id;
+    
+    // 获取站点数据
+    fetch(`/${managePath}/sites/${id}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.code === 0) {
+                const site = data.data;
+                document.getElementById('name').value = site.name;
+                document.getElementById('url').value = site.url;
+                document.getElementById('description').value = site.description;
+                document.getElementById('enabled').checked = site.enabled === 1;
+                document.getElementById('isCache').checked = site.isCache === 1;
+                document.getElementById('sitemap').checked = site.sitemap === 1;
+                document.getElementById('ssl').checked = site.ssl === 1;
+                siteModal.show();
+            } else {
+                alert(data.message);
+            }
+        });
+}
+
+function manageCert(id) {
+    // 加载证书数据
+    fetch(`/${managePath}/certificates/${id}`)
+        .then(response => response.text())
+        .then(html => {
+            document.getElementById('certContent').innerHTML = html;
+            certModal.show();
+        });
+}
+
+function deleteSite(id) {
+    if (!confirm('确定要删除这个站点吗？')) {
+        return;
+    }
+    fetch(`/${managePath}/sites/${id}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log(data);
+        if (data.code === 0) {
+            location.reload();
+        } else {
+            alert(data.message || '删除失败');
         }
-    </script>
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('删除失败');
+    });
+}
+
+function addSite() {
+    document.querySelector('.modal-title').textContent = '添加站点';
+    document.getElementById('siteForm').reset();
+    document.getElementById('siteId').value = '';
+    siteModal.show();
+}
+
+function saveSite() {
+    const id = document.getElementById('siteId').value;
+    const site = {
+        name: document.getElementById('name').value,
+        url: document.getElementById('url').value,
+        description: document.getElementById('description').value,
+        enabled: document.getElementById('enabled').checked ? 1 : 0,
+        isCache: document.getElementById('isCache').checked ? 1 : 0,
+        sitemap: document.getElementById('sitemap').checked ? 1 : 0,
+        ssl: document.getElementById('ssl').checked ? 1 : 0
+    };
+    
+    const url = id ? `/${managePath}/sites/${id}` : `/${managePath}/sites`;
+    const method = id ? 'PUT' : 'POST';
+    
+    fetch(url, {
+        method: method,
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(site)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.code === 0) {
+            siteModal.hide();
+            location.reload();
+        } else {
+            alert(data.message);
+        }
+    });
+}
+
+function editTdk(id) {
+    document.getElementById('tdkSiteId').value = id;
+    
+    // 获取站点TDK数据
+    fetch(`/${managePath}/sites/${id}/tdk`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.code === 0) {
+                const tdk = data.data;
+                document.getElementById('title').value = tdk.title || '';
+                document.getElementById('metaDescription').value = tdk.description || '';
+                document.getElementById('keywords').value = tdk.keywords || '';
+                tdkModal.show();
+            } else {
+                alert(data.message);
+            }
+        });
+}
+
+function saveTdk() {
+    const id = document.getElementById('tdkSiteId').value;
+    const tdk = {
+        title: document.getElementById('title').value,
+        description: document.getElementById('metaDescription').value,
+        keywords: document.getElementById('keywords').value
+    };
+    
+    fetch(`/${managePath}/sites/${id}/tdk`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(tdk)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.code === 0) {
+            tdkModal.hide();
+            location.reload();
+        } else {
+            alert(data.message);
+        }
+    });
+}
+
+function editKeywords(id) {
+    currentKeywordSiteId = id;
+    // 清空表格
+    document.querySelector('#keywordsTable tbody').innerHTML = '';
+    
+    // 加载关键字数据
+    fetch(`/${managePath}/keywords/${id}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.code === 0) {
+                const keywords = data.data;
+                keywords.forEach(keyword => addKeywordRow(keyword));
+                keywordsModal.show();
+            } else {
+                alert(data.message);
+            }
+        });
+}
+
+function addKeywordRow(keyword = null) {
+    const tbody = document.querySelector('#keywordsTable tbody');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td>
+            <input type="text" class="form-control source-word" value="${keyword ? keyword.sourceWord : ''}">
+        </td>
+        <td>
+            <input type="text" class="form-control target-word" value="${keyword ? keyword.targetWord : ''}">
+        </td>
+        <td>
+            <div class="form-check form-switch">
+                <input class="form-check-input keyword-enabled" type="checkbox" 
+                    ${keyword ? (keyword.enabled === 1 ? 'checked' : '') : 'checked'}>
+            </div>
+        </td>
+        <td>
+            <button class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()">删除</button>
+        </td>
+    `;
+    tbody.appendChild(tr);
+}
+
+function saveKeywords() {
+    const keywords = [];
+    document.querySelectorAll('#keywordsTable tbody tr').forEach(tr => {
+        keywords.push({
+            siteId: currentKeywordSiteId,
+            sourceWord: tr.querySelector('.source-word').value,
+            targetWord: tr.querySelector('.target-word').value,
+            enabled: tr.querySelector('.keyword-enabled').checked ? 1 : 0
+        });
+    });
+    
+    fetch(`/${managePath}/keywords/${currentKeywordSiteId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(keywords)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.code === 0) {
+            keywordsModal.hide();
+            location.reload();
+        } else {
+            alert(data.message);
+        }
+    });
+}
+
+// 其他已有的函数保持不变...
+</script>
 </body>
 </html> 

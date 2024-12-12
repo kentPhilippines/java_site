@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>关键字替换管理</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+</head>
+<body>
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>关键字替换管理</h2>
+        <div>
+            <a th:href="@{'/' + ${adminPath}}" class="btn btn-secondary me-2">返回主页</a>
+            <button class="btn btn-primary" onclick="addKeywordRow()">添加规则</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <div class="row">
+                <div class="col">
+                    <h5 class="mb-0">站点：<span th:text="${site.name}"></span></h5>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <table class="table" id="keywordsTable">
+                <thead>
+                    <tr>
+                        <th width="25%">原关键字</th>
+                        <th width="25%">替换为</th>
+                        <th width="30%">指定页面链接</th>
+                        <th width="10%">状态</th>
+                        <th width="10%">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
+        </div>
+        <div class="card-footer">
+            <button class="btn btn-primary" onclick="saveKeywords()">保存全部</button>
+            <a th:href="@{'/' + ${managePath} + '/sites'}" class="btn btn-secondary">返回</a>
+        </div>
+    </div>
+</div>
+
+<script th:inline="javascript">
+const adminPath = [[${adminPath}]];
+const siteId = [[${site.id}]];
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadKeywords();
+});
+
+function loadKeywords() {
+    fetch(`/${adminPath}/keywords/${siteId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.code === 0) {
+                document.querySelector('#keywordsTable tbody').innerHTML = '';
+                data.data.forEach(keyword => addKeywordRow(keyword));
+            } else {
+                alert(data.message);
+            }
+        });
+}
+
+function addKeywordRow(keyword = null) {
+    const tbody = document.querySelector('#keywordsTable tbody');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td>
+            <input type="text" class="form-control source-word" value="${keyword ? keyword.sourceWord : ''}" 
+                   placeholder="输入要替换的关键字">
+        </td>
+        <td>
+            <input type="text" class="form-control target-word" value="${keyword ? keyword.targetWord : ''}"
+                   placeholder="输入替换后的内容">
+        </td>
+        <td>
+            <input type="text" class="form-control page-url" value="${keyword ? keyword.pageUrl : ''}"
+                   placeholder="输入页面链接（可选）">
+        </td>
+        <td>
+            <div class="form-check form-switch">
+                <input class="form-check-input keyword-enabled" type="checkbox" 
+                    ${keyword ? (keyword.enabled === 1 ? 'checked' : '') : 'checked'}>
+                <label class="form-check-label">启用</label>
+            </div>
+        </td>
+        <td>
+            <button class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()">
+                <i class="bi bi-trash"></i>
+            </button>
+        </td>
+    `;
+    tbody.appendChild(tr);
+}
+
+function saveKeywords() {
+    const keywords = [];
+    document.querySelectorAll('#keywordsTable tbody tr').forEach(tr => {
+        const sourceWord = tr.querySelector('.source-word').value.trim();
+        const targetWord = tr.querySelector('.target-word').value.trim();
+        const pageUrl = tr.querySelector('.page-url').value.trim();
+        
+        if (sourceWord && targetWord) {
+            keywords.push({
+                siteId: siteId,
+                sourceWord: sourceWord,
+                targetWord: targetWord,
+                pageUrl: pageUrl,
+                enabled: tr.querySelector('.keyword-enabled').checked ? 1 : 0
+            });
+        }
+    });
+    
+    fetch(`/${adminPath}/keywords/${siteId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(keywords)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.code === 0) {
+            alert('保存成功');
+            loadKeywords();
+        } else {
+            alert(data.message);
+        }
+    });
+}
+</script>
+</body>
+</html> 

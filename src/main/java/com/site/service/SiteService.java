@@ -10,6 +10,10 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.extern.slf4j.Slf4j;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import com.site.mapper.SiteStatsMapper;
+import com.site.mapper.SiteCertificateMapper;
 
 @Service
 @RequiredArgsConstructor
@@ -19,6 +23,8 @@ public class SiteService {
 
     private final SiteMapper siteMapper;
     private final CertificateService certificateService;
+    private final SiteStatsMapper statsMapper;
+    private final SiteCertificateMapper certificateMapper;
 
     @Cacheable(key = "#host")
     public Site getSiteByUrl(String host) {
@@ -80,12 +86,36 @@ public class SiteService {
 
     @CacheEvict(allEntries = true)
     @Transactional
-    public void deleteSite(String name) {
-        siteMapper.delete(name);
+    public void deleteSite(Long id) {
+        siteMapper.deleteById(id);
+        statsMapper.deleteBySiteId(id);
+        certificateMapper.deleteBySiteId(id);   
     }
 
     @Cacheable(key = "#id")
     public Site selectById(Long id) {
         return siteMapper.selectById(id);
+    }
+
+    @Transactional
+    public void batchDelete(List<Long> siteIds) {
+        for (Long siteId : siteIds) {
+            // 删除站点相关的所有数据
+            statsMapper.deleteBySiteId(siteId);
+            certificateMapper.deleteBySiteId(siteId);
+            siteMapper.deleteById(siteId);
+        }
+    }
+
+    @Transactional
+    public void batchUpdateStatus(List<Long> siteIds, boolean enabled) {
+        for (Long siteId : siteIds) {
+            Site site = siteMapper.selectById(siteId);
+            if (site != null) {
+                site.setEnabled(enabled ? 1 : 0);
+                site.setUpdateTime(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+                siteMapper.update(site);
+            }
+        }
     }
 }
