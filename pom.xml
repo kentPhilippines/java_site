@@ -109,6 +109,13 @@
             <artifactId>httpclient</artifactId>
             <version>4.5.14</version>
         </dependency>
+
+        <!-- Google Guava -->
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>31.1-jre</version>
+        </dependency>
     </dependencies>
 
     <build>
