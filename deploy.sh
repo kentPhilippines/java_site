@@ -3,42 +3,89 @@
 # 设置工作目录
 WORK_DIR="/opt/java_site"
 JAR_NAME="java_site.jar"
+JAVA_HOME="${WORK_DIR}/jdk-17"
+MAVEN_HOME="${WORK_DIR}/maven"
+PATH="${JAVA_HOME}/bin:${MAVEN_HOME}/bin:$PATH"
 
-# 检查是否安装了必要的软件
-check_requirements() {
-    command -v java >/dev/null 2>&1 || { echo "需要安装 Java 但未找到，正在安装..."; install_java; }
-    command -v git >/dev/null 2>&1 || { echo "需要安装 Git 但未找到，正在安装..."; install_git; }
-    command -v mvn >/dev/null 2>&1 || { echo "需要安装 Maven 但未找到，正在安装..."; install_maven; }
+# 下载工具函数
+download_file() {
+    local url=$1
+    local output=$2
+    if command -v curl >/dev/null 2>&1; then
+        curl -L -o "$output" "$url"
+    elif command -v wget >/dev/null 2>&1; then
+        wget -O "$output" "$url"
+    else
+        echo "需要 curl 或 wget 来下载文件"
+        exit 1
+    fi
+}
+
+# 创建工作目录
+create_directories() {
+    echo "创建工作目录..."
+    sudo mkdir -p ${WORK_DIR}
+    sudo chown -R $(whoami):$(whoami) ${WORK_DIR}
 }
 
 # 安装 Java
 install_java() {
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        brew install openjdk@17
-        sudo ln -sfn $(brew --prefix)/opt/openjdk@17/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk-17.jdk
-    elif [[ -f /etc/debian_version ]]; then
-        sudo apt-get update
-        # 移除旧版本 Java（如果存在）
-        sudo apt-get remove -y openjdk*
-        # 安装 JDK 17
-        sudo apt-get install -y openjdk-17-jdk
-        # 设置 JDK 17 为默认版本
-        sudo update-alternatives --set java /usr/lib/jvm/java-17-openjdk-amd64/bin/java
-        sudo update-alternatives --set javac /usr/lib/jvm/java-17-openjdk-amd64/bin/javac
-    elif [[ -f /etc/redhat-release ]]; then
-        # 移除旧版本 Java（如果存在）
-        sudo yum remove -y java*
-        # 安装 JDK 17
-        sudo yum install -y java-17-openjdk-devel
-        # 设置 JDK 17 为默认版本
-        sudo alternatives --set java java-17-openjdk.x86_64
-        sudo alternatives --set javac java-17-openjdk.x86_64
+    echo "安装 JDK 17..."
+    if [ ! -d "${JAVA_HOME}" ]; then
+        cd ${WORK_DIR}
+        # 下载 OpenJDK 17
+        if [[ "$(uname -m)" == "x86_64" ]]; then
+            download_file "https://download.java.net/java/GA/jdk17.0.2/dfd4a8d0985749f896bed50d7138ee7f/8/GPL/openjdk-17.0.2_linux-x64_bin.tar.gz" "jdk17.tar.gz"
+        else
+            download_file "https://download.java.net/java/GA/jdk17.0.2/dfd4a8d0985749f896bed50d7138ee7f/8/GPL/openjdk-17.0.2_linux-aarch64_bin.tar.gz" "jdk17.tar.gz"
+        fi
+        tar -xzf jdk17.tar.gz
+        rm jdk17.tar.gz
+        mv jdk-17* jdk-17
     fi
 
     # 验证 Java 版本
-    java_version=$(java -version 2>&1 | awk -F '"' '/version/ {print $2}' | cut -d'.' -f1)
-    if [ "$java_version" != "17" ]; then
-        echo "错误：Java 版本不是 17，当前版本是 $java_version"
+    ${JAVA_HOME}/bin/java -version
+    if [ $? -ne 0 ]; then
+        echo "Java 安装失败"
+        exit 1
+    fi
+}
+
+# 安装 Maven
+install_maven() {
+    echo "安装 Maven..."
+    if [ ! -d "${MAVEN_HOME}" ]; then
+        cd ${WORK_DIR}
+        download_file "https://dlcdn.apache.org/maven/maven-3/3.9.5/binaries/apache-maven-3.9.5-bin.tar.gz" "maven.tar.gz"
+        tar -xzf maven.tar.gz
+        rm maven.tar.gz
+        mv apache-maven-* maven
+        
+        # 创建 Maven 配置文件
+        mkdir -p ${MAVEN_HOME}/conf
+        cat > ${MAVEN_HOME}/conf/settings.xml << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 http://maven.apache.org/xsd/settings-1.0.0.xsd">
+    <localRepository>${WORK_DIR}/maven/repository</localRepository>
+    <mirrors>
+        <mirror>
+            <id>aliyun</id>
+            <mirrorOf>central</mirrorOf>
+            <name>Aliyun Maven Mirror</name>
+            <url>https://maven.aliyun.com/repository/public</url>
+        </mirror>
+    </mirrors>
+</settings>
+EOF
+    fi
+
+    # 验证 Maven 安装
+    ${MAVEN_HOME}/bin/mvn -version
+    if [ $? -ne 0 ]; then
+        echo "Maven 安装失败"
         exit 1
     fi
 }
@@ -53,29 +100,6 @@ install_git() {
     elif [[ -f /etc/redhat-release ]]; then
         sudo yum install -y git
     fi
-}
-
-# 安装 Maven
-install_maven() {
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        brew install maven
-    elif [[ -f /etc/debian_version ]]; then
-        sudo apt-get update
-        sudo apt-get install -y maven
-        # 配置 Maven 使用 JDK 17
-        sudo sh -c 'echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> /etc/maven/mavenrc'
-    elif [[ -f /etc/redhat-release ]]; then
-        sudo yum install -y maven
-        # 配置 Maven 使用 JDK 17
-        sudo sh -c 'echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk" >> /etc/maven/mavenrc'
-    fi
-}
-
-# 创建工作目录
-create_directories() {
-    echo "创建工作目录..."
-    sudo mkdir -p ${WORK_DIR}
-    sudo chown -R $(whoami):$(whoami) ${WORK_DIR}
 }
 
 # 拉取源码
@@ -102,8 +126,17 @@ build_project() {
         exit 1
     fi
     
+    # 设置 JAVA_HOME 和 MAVEN_HOME
+    export JAVA_HOME=${JAVA_HOME}
+    export MAVEN_HOME=${MAVEN_HOME}
+    export PATH=${JAVA_HOME}/bin:${MAVEN_HOME}/bin:$PATH
+    
     # 执行构建
-    if mvn clean package -DskipTests; then
+    ${MAVEN_HOME}/bin/mvn clean package -DskipTests \
+        -Dmaven.home=${MAVEN_HOME} \
+        -Djavax.net.ssl.trustStore=${JAVA_HOME}/lib/security/cacerts
+    
+    if [ $? -eq 0 ]; then
         echo "构建成功"
         cp target/*.jar ${WORK_DIR}/${JAR_NAME}
     else
@@ -126,14 +159,23 @@ stop_service() {
 start_service() {
     echo "正在启动服务..."
     cd ${WORK_DIR}
-    nohup java -jar ${JAR_NAME} --spring.profiles.active=prod > app.log 2>&1 &
+    ${JAVA_HOME}/bin/java -jar ${JAR_NAME} --spring.profiles.active=prod > app.log 2>&1 &
     echo "服务已启动，日志文件：${WORK_DIR}/app.log"
+}
+
+# 检查必要的工具
+check_requirements() {
+    command -v curl >/dev/null 2>&1 || command -v wget >/dev/null 2>&1 || { echo "需要安装 curl 或 wget"; exit 1; }
+    command -v tar >/dev/null 2>&1 || { echo "需要安装 tar"; exit 1; }
+    command -v git >/dev/null 2>&1 || { echo "需要安装 Git 但未找到，正在安装..."; install_git; }
 }
 
 # 主函数
 main() {
     check_requirements
     create_directories
+    install_java
+    install_maven
     clone_source
     build_project
     stop_service
