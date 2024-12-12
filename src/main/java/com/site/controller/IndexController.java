@@ -2,7 +2,6 @@ package com.site.controller;
 
 import com.site.config.ProxyConfig;
 import com.site.entity.Site;
-import com.site.service.AcmeService;
 import com.site.util.HttpUtils;
 import com.site.util.CacheUtil;
 import com.site.service.SiteService;
@@ -26,7 +25,6 @@ public class IndexController {
     private final HttpUtils httpUtils;
     private final CacheUtil cacheUtil;
     private final SiteService siteService;
-    private final AcmeService acmeService;
     @Value("${admin.path:#{T(java.util.UUID).randomUUID().toString()}}")
     private String adminPath;
 
@@ -58,6 +56,7 @@ public class IndexController {
             if (path.startsWith(adminPath)) {
                 return null;
             }
+
 
             String fullUrl = host + path;
 

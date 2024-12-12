@@ -1,5 +1,8 @@
 server:
   port: 9090
+  http-port: 80
+  ssl:
+    enabled: false
   tomcat:
     max-threads: 200
     min-spare-threads: 10
@@ -12,10 +15,17 @@ server:
     remote-ip-header: X-Forwarded-For
     protocol-header: X-Forwarded-Proto
     protocol-header-https-value: https
+    additional-tld-skip-patterns: ['*.nginx-system.com']
+
+cert:
+  service:
+    url: http://8.210.194.181:8000  # Python证书服务的地址
 
 spring:
   application:
     name: java-site
+  main:
+    allow-circular-references: true
   cache:
     type: caffeine
     caffeine:
@@ -39,7 +49,6 @@ mybatis:
   type-aliases-package: com.site.entity
   configuration:
     map-underscore-to-camel-case: true
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
     lazy-loading-enabled: true
     aggressive-lazy-loading: false
     cache-enabled: true
@@ -98,16 +107,15 @@ proxy:
     - Accept
     - Accept-Language
     - Accept-Encoding
-
-logging:
-  level:
-    com.site.mapper: DEBUG
-    com.site: DEBUG
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n" 
-
 admin:
   path: HSuu22299dhs
 
 app:
   base-dir: ${user.dir}
+
+logging:
+  level:
+    root: INFO
+    com.site: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"

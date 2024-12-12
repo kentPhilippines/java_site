@@ -37,7 +37,17 @@
             </div>
             <div class="card-body">
                 <p class="text-muted">点击下方按钮自动申请Let's Encrypt免费SSL证书</p>
-                <button id="requestCertBtn" class="btn btn-primary" onclick="requestCertificate()">申请证书</button>
+                <button id="requestCertBtn" class="btn btn-primary" 
+                    th:disabled="${certificate != null && certificate.status == 'ACTIVE'}"
+                    onclick="requestCertificate()">
+                    申请证书
+                </button>
+                <div th:if="${certificate != null && certificate.status == 'ACTIVE'}" class="alert alert-info mt-3">
+                    已有活跃的证书，无需重新申请
+                </div>
+                <div th:if="${certificate != null && certificate.status == 'FAILED'}" class="alert alert-danger mt-3">
+                    上次证书申请失败，可以重新尝试
+                </div>
                 <div id="requestStatus" class="mt-3" style="display: none;">
                     <div class="alert alert-info">
                         证书申请中，请稍候...
@@ -148,6 +158,24 @@
                 });
             }
         }
+
+        // 获取当前证书状态
+        function checkCertStatus() {
+            const certificate = /*[[${certificate}]]*/ null;
+            if (certificate) {
+                const btn = document.getElementById('requestCertBtn');
+                if (certificate.status === 'ACTIVE') {
+                    btn.disabled = true;
+                } else {
+                    btn.disabled = false;
+                }
+            }
+        }
+
+        // 页面加载时检查状态
+        document.addEventListener('DOMContentLoaded', function() {
+            checkCertStatus();
+        });
     </script>
 </body>
 </html> 

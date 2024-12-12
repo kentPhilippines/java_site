@@ -10,8 +10,6 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 
 @Service
 @RequiredArgsConstructor
@@ -20,11 +18,7 @@ import org.springframework.context.annotation.Lazy;
 public class SiteService {
 
     private final SiteMapper siteMapper;
-    
-    @Autowired
-    private NginxService nginxService;
-    
-    private final AcmeService acmeService;
+    private final CertificateService certificateService;
 
     @Cacheable(key = "#host")
     public Site getSiteByUrl(String host) {
@@ -57,17 +51,12 @@ public class SiteService {
             // 异步申请证书
             new Thread(() -> {
                 try {
-                    // 申请证书
-                    acmeService.requestCertificate(site);
-                    // 生成Nginx配置
-                    nginxService.generateSiteConfig(site.getName());
+                    String domain = site.getName().replaceAll("https?://", "");
+                    certificateService.saveCertificate(domain, site.getId());
                 } catch (Exception e) {
                     log.error("站点 {} 的证书申请失败: {}", site.getName(), e.getMessage(), e);
                 }
             }).start();
-        } else {
-            // 直接生成Nginx配置
-            nginxService.generateSiteConfig(site.getName());
         }
     }
 
@@ -80,30 +69,19 @@ public class SiteService {
             // 异步申请证书
             new Thread(() -> {
                 try {
-                    // 申请证书
-                    acmeService.requestCertificate(site);
-                    // 生成Nginx配置
-                    nginxService.generateSiteConfig(site.getName());
+                    String domain = site.getName().replaceAll("https?://", "");
+                    certificateService.saveCertificate(domain, site.getId());
                 } catch (Exception e) {
                     log.error("站点 {} 的证书申请失败: {}", site.getName(), e.getMessage(), e);
                 }
             }).start();
-        } else {
-            // 直接生成Nginx配置
-            nginxService.generateSiteConfig(site.getName());
         }
     }
 
     @CacheEvict(allEntries = true)
     @Transactional
     public void deleteSite(String name) {
-        Site site = getSiteByName(name);
-        if (site != null) {
-            String domain = site.getUrl().replaceAll("https?://", "");
-            siteMapper.delete(name);
-            // 删除Nginx配置
-            nginxService.deleteSiteConfig(domain);
-        }
+        siteMapper.delete(name);
     }
 
     @Cacheable(key = "#id")

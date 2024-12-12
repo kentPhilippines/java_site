@@ -17,12 +17,10 @@ public class SiteCertificate {
     private String expiresAt;
     
     // 证书状态常量
-    public static final String STATUS_PENDING = "PENDING";
     public static final String STATUS_ACTIVE = "ACTIVE";
     public static final String STATUS_EXPIRED = "EXPIRED";
+    public static final String STATUS_FAILED = "FAILED";
     
     // 证书类型常量
-    public static final String TYPE_MANUAL = "MANUAL";
-    public static final String TYPE_AUTO = "AUTO";
-    public static final String TYPE_ACME = "ACME";
+    public static final String TYPE_MANUAL = "MANUAL";  // 手动上传的证书
 } 
