@@ -15,11 +15,31 @@ check_requirements() {
 install_java() {
     if [[ "$OSTYPE" == "darwin"* ]]; then
         brew install openjdk@17
+        sudo ln -sfn $(brew --prefix)/opt/openjdk@17/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk-17.jdk
     elif [[ -f /etc/debian_version ]]; then
         sudo apt-get update
+        # 移除旧版本 Java（如果存在）
+        sudo apt-get remove -y openjdk*
+        # 安装 JDK 17
         sudo apt-get install -y openjdk-17-jdk
+        # 设置 JDK 17 为默认版本
+        sudo update-alternatives --set java /usr/lib/jvm/java-17-openjdk-amd64/bin/java
+        sudo update-alternatives --set javac /usr/lib/jvm/java-17-openjdk-amd64/bin/javac
     elif [[ -f /etc/redhat-release ]]; then
+        # 移除旧版本 Java（如果存在）
+        sudo yum remove -y java*
+        # 安装 JDK 17
         sudo yum install -y java-17-openjdk-devel
+        # 设置 JDK 17 为默认版本
+        sudo alternatives --set java java-17-openjdk.x86_64
+        sudo alternatives --set javac java-17-openjdk.x86_64
+    fi
+
+    # 验证 Java 版本
+    java_version=$(java -version 2>&1 | awk -F '"' '/version/ {print $2}' | cut -d'.' -f1)
+    if [ "$java_version" != "17" ]; then
+        echo "错误：Java 版本不是 17，当前版本是 $java_version"
+        exit 1
     fi
 }
 
@@ -42,8 +62,12 @@ install_maven() {
     elif [[ -f /etc/debian_version ]]; then
         sudo apt-get update
         sudo apt-get install -y maven
+        # 配置 Maven 使用 JDK 17
+        sudo sh -c 'echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> /etc/maven/mavenrc'
     elif [[ -f /etc/redhat-release ]]; then
         sudo yum install -y maven
+        # 配置 Maven 使用 JDK 17
+        sudo sh -c 'echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk" >> /etc/maven/mavenrc'
     fi
 }
 
