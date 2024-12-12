@@ -25,7 +25,6 @@ public class CacheUtil {
     private final Map<String, CacheItem> memoryCache = new ConcurrentHashMap<>();
     private static final String CACHE_DIR = "cache";
     private static final long EXPIRE_TIME = TimeUnit.HOURS.toMillis(1);  // 1小时过期
-    private final SiteService siteService;
 
     public void put(String key, String value, Site site) {
         memoryCache.put(key, new CacheItem(value));
