@@ -30,12 +30,10 @@ public class CertificateDeployService {
     private int serverPort;
     
     private final RestTemplate restTemplate;
-    private final ObjectMapper objectMapper;
     
     private static final String API_BASE_PATH = "/api/v1";
     private static final int MAX_RETRIES = 1;
     private static final long RETRY_DELAY_MS = 20000 * 2; // 10秒
-    
     /**
      * 带重试机制的HTTP请求
      */

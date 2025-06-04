@@ -6,7 +6,7 @@
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
 </head>
 <body>
-    <div class="container mt-4">
+    <div class="container mt-4" th:attr="data-site-id=${site.id}">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h2>证书管理 - <span th:text="${site.name}"></span></h2>
             <a th:href="@{'/'+${managePath}}" class="btn btn-secondary">返回主页</a>
@@ -93,7 +93,6 @@
         </div>
     </div>
 
-    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
     <script th:inline="javascript">
         const adminPath = [[${managePath}]];
@@ -103,37 +102,52 @@
                 return;
             }
             
-            $('#requestCertBtn').prop('disabled', true);
-            $('#requestStatus').show();
+            const requestBtn = document.getElementById('requestCertBtn');
+            const requestStatus = document.getElementById('requestStatus');
+            
+            if (requestBtn) requestBtn.disabled = true;
+            if (requestStatus) requestStatus.style.display = 'block';
 
             const url = `/${adminPath}/api/certificates/request/${[[${site.id}]]}`;
-            $.ajax({
-                url: url,
-                type: 'POST',
-                success: function(response) {
-                    startPollingStatus();
-                },
-                error: function(xhr) {
-                    alert('证书申请失败: ' + xhr.responseJSON.error);
-                    $('#requestCertBtn').prop('disabled', false);
-                    $('#requestStatus').hide();
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
                 }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.message) {
+                    alert(data.message);
+                    startPollingStatus();
+                } else if (data.error) {
+                    alert('证书申请失败: ' + data.error);
+                    if (requestBtn) requestBtn.disabled = false;
+                    if (requestStatus) requestStatus.style.display = 'none';
+                }
+            })
+            .catch(error => {
+                console.error('证书申请失败:', error);
+                alert('证书申请失败: ' + error.message);
+                if (requestBtn) requestBtn.disabled = false;
+                if (requestStatus) requestStatus.style.display = 'none';
             });
         }
         
         function startPollingStatus() {
             const url = `/${adminPath}/api/certificates/status/${[[${site.id}]]}`;
-            var pollInterval = setInterval(function() {
-                $.ajax({
-                    url: url,
-                    type: 'GET',
-                    success: function(response) {
-                        if (response.status === 'ACTIVE') {
+            const pollInterval = setInterval(function() {
+                fetch(url)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'ACTIVE') {
                             clearInterval(pollInterval);
                             location.reload();
                         }
-                    }
-                });
+                    })
+                    .catch(error => {
+                        console.error('获取证书状态失败:', error);
+                    });
             }, 5000);
             
             // 5分钟后停止轮询
@@ -145,16 +159,25 @@
         
         function deleteCertificate(id) {
             if (confirm('确定要删除这个证书吗？')) {
-                const url = `/${adminPath}/api/certificates/${id}`; 
-                $.ajax({
-                    url: url,
-                    type: 'DELETE',
-                    success: function() {
-                        location.reload();
-                    },
-                    error: function(xhr) {
-                        alert('证书删除失败: ' + xhr.responseJSON.error);
+                const url = `/${adminPath}/api/certificates/${id}`;
+                fetch(url, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
                     }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.message) {
+                        alert(data.message);
+                        location.reload();
+                    } else if (data.error) {
+                        alert('证书删除失败: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('删除证书失败:', error);
+                    alert('证书删除失败: ' + error.message);
                 });
             }
         }
@@ -175,6 +198,10 @@
         // 页面加载时检查状态
         document.addEventListener('DOMContentLoaded', function() {
             checkCertStatus();
+            const container = document.querySelector('[data-site-id]');
+            if (container) {
+                container.setAttribute('data-site-id', [[${site.id}]]);
+            }
         });
     </script>
 </body>

@@ -15,9 +15,10 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.InputStream;
 import java.io.ByteArrayOutputStream;
 import java.net.URL;
-import java.io.IOException;
-import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
 import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.util.Enumeration;
 
 @Slf4j
 @RestController
@@ -43,7 +44,7 @@ public class IndexController {
     }
 
     @GetMapping("/**")
-    public String proxy(HttpServletRequest request, HttpServletResponse response) {
+    public String proxyGet(HttpServletRequest request, HttpServletResponse response) {
         try {
             String path = request.getRequestURI();
             log.info("请求路径: {}", path);
@@ -55,14 +56,10 @@ public class IndexController {
                 return "Error: 站点不存在";
             }
             log.info("匹配到站点: {}, 目标URL: {}", site.getName(), site.getUrl());
-
             if (path.startsWith(adminPath)) {
                 return null;
             }
-
-
             String fullUrl = host + path;
-
             // 判断是否为静态资源
             if (isStaticResource(path)) {
                 handleStaticResource(host, path, site, response);
@@ -73,7 +70,6 @@ public class IndexController {
                 handleFaviconRequest(site, response);
                 return null;
             }
-
             // 处理非静态资源
             if (site != null && site.getIsCache() == 1) {
                 String cachedContent = cacheUtil.get(fullUrl, site);
@@ -82,17 +78,14 @@ public class IndexController {
                     return cachedContent;
                 }
             }
-
             fullUrl = site.getUrl() + path;
             log.info("代理请求: {} -> {}", path, fullUrl);
-
             String responseContent = httpUtils.get(fullUrl);
             if (site != null && site.getIsCache() == 1) {
                 cacheUtil.put(host + path, responseContent, site);
                 log.info("内容已缓存: {}", fullUrl);
             }
             return responseContent;
-
         } catch (Exception e) {
             log.error("代理请求失败", e);
             return "Error: " + e.getMessage();
@@ -102,7 +95,6 @@ public class IndexController {
     private void handleFaviconRequest(Site site, HttpServletResponse response) throws Exception {
         String faviconPath = "/favicon.ico";
         String cacheKey = site.getName() + faviconPath;
-
         // 先尝试从缓存获取
         byte[] cachedFavicon = cacheUtil.getBytes(cacheKey, site);
         if (cachedFavicon != null) {
@@ -110,7 +102,6 @@ public class IndexController {
             response.getOutputStream().write(cachedFavicon);
             return;
         }
-
         // 缓存未命中，从源站获取
         String faviconUrl = site.getUrl() + faviconPath;
         try {
@@ -131,7 +122,6 @@ public class IndexController {
             throws Exception {
         String cacheKey = host + path;
         String fullUrl = site.getUrl() + path;
-
         // 先尝试从缓存获取
         byte[] cachedContent = cacheUtil.getBytes(cacheKey, site);
         if (cachedContent != null) {
@@ -139,7 +129,6 @@ public class IndexController {
             response.getOutputStream().write(cachedContent);
             return;
         }
-
         // 缓存未命中，从源站获取并缓存
         try {
             URL url = new URL(fullUrl);
@@ -190,6 +179,90 @@ public class IndexController {
         return proxyConfig.getStaticExtensions().stream()
                 .anyMatch(ext -> lowercasePath.endsWith(ext));
     }
- 
- 
+
+    @PostMapping("/**")
+    public void proxyPost(HttpServletRequest request, HttpServletResponse response) {
+        try {
+            String path = request.getRequestURI();
+            log.info("请求路径: {}", path);
+            String host = request.getHeader("Host");
+            log.info("请求主机: {}, 路径: {}", host, path);
+            Site site = siteService.getSiteByUrl(host);
+            if (site == null) {
+                log.error("站点不存在: {}", host);
+                response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+                return;
+            }
+            log.info("匹配到站点: {}, 目标URL: {}", site.getName(), site.getUrl());
+            if (path.startsWith(adminPath)) {
+                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                return;
+            }
+            // 构建目标URL
+            String fullUrl = site.getUrl() + path;
+            log.info("代理请求: {} -> {}", path, fullUrl);
+            // 读取请求体
+            String requestBody = null;
+            try (BufferedReader reader = request.getReader()) {
+                StringBuilder builder = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    builder.append(line);
+                }
+                requestBody = builder.toString();
+            }
+            // 转发请求
+            URL url = new URL(fullUrl);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("POST");
+            // 复制请求头
+            Enumeration<String> headerNames = request.getHeaderNames();
+            while (headerNames.hasMoreElements()) {
+                String headerName = headerNames.nextElement();
+                String headerValue = request.getHeader(headerName);
+                // 跳过某些特殊的请求头
+                if (!"host".equalsIgnoreCase(headerName) && 
+                    !"content-length".equalsIgnoreCase(headerName)) {
+                    conn.setRequestProperty(headerName, headerValue);
+                }
+            }
+            // 设置通用请求头
+            conn.setRequestProperty("Content-Type", request.getContentType());
+            conn.setRequestProperty("Accept", "*/*");
+            conn.setConnectTimeout(10000);
+            conn.setReadTimeout(30000);
+            // 写入请求体
+            if (requestBody != null && !requestBody.isEmpty()) {
+                conn.setDoOutput(true);
+                try (OutputStream os = conn.getOutputStream()) {
+                    byte[] input = requestBody.getBytes("UTF-8");
+                    os.write(input, 0, input.length);
+                }
+            }
+            // 获取响应
+            int responseCode = conn.getResponseCode();
+            response.setStatus(responseCode);
+            // 复制响应头
+            conn.getHeaderFields().forEach((key, values) -> {
+                if (key != null) {  // 跳过状态行
+                    values.forEach(value -> response.addHeader(key, value));
+                }
+            });
+            // 复制响应体
+            try (InputStream is = responseCode >= 400 ? conn.getErrorStream() : conn.getInputStream();
+                 OutputStream os = response.getOutputStream()) {
+                if (is != null) {
+                    byte[] buffer = new byte[8192];
+                    int length;
+                    while ((length = is.read(buffer)) != -1) {
+                        os.write(buffer, 0, length);
+                    }
+                }
+            }
+            conn.disconnect();
+        } catch (Exception e) {
+            log.error("代理请求失败", e);
+            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        }
+    }
 }

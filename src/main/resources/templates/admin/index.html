@@ -406,9 +406,120 @@ function manageCert(id) {
         .then(response => response.text())
         .then(html => {
             document.getElementById('certContent').innerHTML = html;
+            
+            // 执行加载的HTML中的JavaScript代码
+            const scripts = document.getElementById('certContent').querySelectorAll('script');
+            scripts.forEach(script => {
+                if (script.innerHTML) {
+                    try {
+                        // 创建新的script元素并执行
+                        const newScript = document.createElement('script');
+                        newScript.innerHTML = script.innerHTML;
+                        document.head.appendChild(newScript);
+                        document.head.removeChild(newScript);
+                    } catch (e) {
+                        console.error('执行脚本失败:', e);
+                    }
+                }
+            });
+            
             certModal.show();
         });
 }
+
+// 全局证书管理函数
+window.deleteCertificate = function(id) {
+    if (confirm('确定要删除这个证书吗？')) {
+        const url = `/${managePath}/api/certificates/${id}`;
+        fetch(url, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.message) {
+                alert(data.message);
+                // 重新加载证书列表
+                const certContent = document.getElementById('certContent');
+                if (certContent && certContent.dataset.siteId) {
+                    manageCert(certContent.dataset.siteId);
+                }
+            }
+        })
+        .catch(error => {
+            console.error('删除证书失败:', error);
+            alert('证书删除失败: ' + error.message);
+        });
+    }
+};
+
+window.requestCertificate = function() {
+    if (!confirm('确定要申请新的SSL证书吗？')) {
+        return;
+    }
+    
+    const requestBtn = document.getElementById('requestCertBtn');
+    const requestStatus = document.getElementById('requestStatus');
+    
+    if (requestBtn) requestBtn.disabled = true;
+    if (requestStatus) requestStatus.style.display = 'block';
+
+    // 从DOM中获取站点ID
+    const siteIdElement = document.querySelector('[data-site-id]');
+    const siteId = siteIdElement ? siteIdElement.dataset.siteId : null;
+    
+    if (!siteId) {
+        alert('无法获取站点ID');
+        return;
+    }
+
+    const url = `/${managePath}/api/certificates/request/${siteId}`;
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.message) {
+            alert(data.message);
+            startPollingStatus(siteId);
+        }
+    })
+    .catch(error => {
+        console.error('证书申请失败:', error);
+        alert('证书申请失败: ' + error.message);
+        if (requestBtn) requestBtn.disabled = false;
+        if (requestStatus) requestStatus.style.display = 'none';
+    });
+};
+
+window.startPollingStatus = function(siteId) {
+    const url = `/${managePath}/api/certificates/status/${siteId}`;
+    const pollInterval = setInterval(function() {
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'ACTIVE') {
+                    clearInterval(pollInterval);
+                    // 重新加载证书管理页面
+                    manageCert(siteId);
+                }
+            })
+            .catch(error => {
+                console.error('获取证书状态失败:', error);
+            });
+    }, 5000);
+    
+    // 5分钟后停止轮询
+    setTimeout(function() {
+        clearInterval(pollInterval);
+        manageCert(siteId);
+    }, 300000);
+};
 
 function deleteSite(id) {
     if (!confirm('确定要删除这个站点吗？')) {

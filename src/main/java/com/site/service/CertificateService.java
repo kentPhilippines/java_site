@@ -37,20 +37,16 @@ public class CertificateService {
         if (cert == null) {
             return null;
         }
-        
         try {
             Map<String, Object> pyStatus = certificateDeployService.getCertificateStatus(cert.getDomain());
-            
             if (pyStatus != null) {
                 // 更新证书状态
                 boolean sslEnabled = Boolean.TRUE.equals(pyStatus.get("ssl_enabled"));
                 Map<String, Object> sslInfo = (Map<String, Object>) pyStatus.get("ssl_info");
-                
                 if (sslEnabled && sslInfo != null) {
                     // 检查证书文件是否存在
                     boolean certExists = Boolean.TRUE.equals(sslInfo.get("cert_exists"));
                     boolean keyExists = Boolean.TRUE.equals(sslInfo.get("key_exists"));
-                    
                     if (certExists && keyExists) {
                         cert.setStatus(SiteCertificate.STATUS_ACTIVE);
                         cert.setCertFile((String) sslInfo.get("cert_path"));
@@ -64,7 +60,6 @@ public class CertificateService {
                     cert.setStatus(SiteCertificate.STATUS_FAILED);
                     log.warn("域名 {} 的SSL未启用", cert.getDomain());
                 }
-                
                 certificateMapper.update(cert);
                 log.info("域名 {} 的证书状态已同步", cert.getDomain());
             }
@@ -73,7 +68,6 @@ public class CertificateService {
             cert.setStatus(SiteCertificate.STATUS_FAILED);
             certificateMapper.update(cert);
         }
-        
         return cert;
     }
     
@@ -106,21 +100,21 @@ public class CertificateService {
         
         // 异步调用Python服务申请证书
         try {
-            Map<String, Object> certInfo = certificateDeployService.requestCertificate(
-                domain,
-                "admin@" + domain
-            );
+//            Map<String, Object> certInfo = certificateDeployService.requestCertificate(
+//                domain,
+//                "admin@" + domain
+//            );
             
             // 更新证书文件路径
-            if (certInfo != null) {
-                certificate.setCertFile((String) certInfo.get("cert_file"));
-                certificate.setKeyFile((String) certInfo.get("key_file"));
-                if (certInfo.containsKey("chain_file")) {
-                    certificate.setChainFile((String) certInfo.get("chain_file"));
-                }
+//            if (certInfo != null) {
+//                certificate.setCertFile((String) certInfo.get("cert_file"));
+//                certificate.setKeyFile((String) certInfo.get("key_file"));
+//                if (certInfo.containsKey("chain_file")) {
+//                    certificate.setChainFile((String) certInfo.get("chain_file"));
+//                }
                 certificateMapper.update(certificate);
                 log.info("域名 {} 的证书申请成功", domain);
-            }
+//            }
         } catch (Exception e) {
             log.error("通过Python服务申请证书失败: {}", e.getMessage(), e);
             // 更新证书状态为失败
